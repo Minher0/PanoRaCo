@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panorama Ratio Corrector — PanoRaCo</title>
+  <meta name="description" content="Ajustez la hauteur de vos photos panoramiques au ratio 2:1 en étendant la dernière ligne de pixels du haut." />
+  <style>
+    :root {
+      --bg: #0b1020;
+      --bg-elev: #131a30;
+      --bg-elev-2: #1b2342;
+      --border: #2a3358;
+      --text: #e8ecff;
+      --text-muted: #97a0c8;
+      --accent: #6366f1;
+      --accent-hover: #818cf8;
+      --accent-soft: rgba(99, 102, 241, 0.15);
+      --success: #10b981;
+      --success-soft: rgba(16, 185, 129, 0.12);
+      --warning: #f59e0b;
+      --warning-soft: rgba(245, 158, 11, 0.12);
+      --danger: #ef4444;
+      --danger-soft: rgba(239, 68, 68, 0.12);
+      --radius: 14px;
+      --radius-sm: 10px;
+      --shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+      --mono: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono", Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      background:
+        radial-gradient(1200px 600px at 80% -10%, rgba(99, 102, 241, 0.18), transparent 60%),
+        radial-gradient(900px 500px at -10% 110%, rgba(16, 185, 129, 0.10), transparent 60%),
+        var(--bg);
+      background-attachment: fixed;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      background: var(--accent-soft);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--accent-hover);
+      margin-bottom: 24px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .logo-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-hover);
+      box-shadow: 0 0 12px var(--accent-hover);
+    }
+
+    h1 {
+      font-size: clamp(32px, 6vw, 52px);
+      line-height: 1.1;
+      margin: 0 0 16px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(180deg, #ffffff 0%, #b8c0e8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      font-size: clamp(15px, 2vw, 18px);
+      color: var(--text-muted);
+      max-width: 620px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .card {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    /* Upload zone */
+    .upload-zone {
+      position: relative;
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 56px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: var(--bg-elev-2);
+    }
+
+    .upload-zone:hover,
+    .upload-zone.dragover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      transform: translateY(-1px);
+    }
+
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .upload-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+      display: block;
+    }
+
+    .upload-title {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 6px;
+    }
+
+    .upload-hint {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    .upload-formats {
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-family: var(--mono);
+    }
+
+    /* Status / messages */
+    .message {
+      padding: 14px 18px;
+      border-radius: var(--radius-sm);
+      margin-top: 20px;
+      font-size: 14px;
+      line-height: 1.5;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .message.info {
+      background: var(--accent-soft);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: var(--accent-hover);
+    }
+
+    .message.success {
+      background: var(--success-soft);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+
+    .message.warning {
+      background: var(--warning-soft);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #fbbf24;
+    }
+
+    .message.error {
+      background: var(--danger-soft);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+
+    .message-icon {
+      font-size: 16px;
+      line-height: 1.4;
+      flex-shrink: 0;
+    }
+
+    .message strong {
+      font-weight: 700;
+    }
+
+    .message code {
+      font-family: var(--mono);
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    /* Info grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+
+    .info-tile {
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+    }
+
+    .info-tile-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .info-tile-value {
+      font-size: 18px;
+      font-weight: 700;
+      font-family: var(--mono);
+      color: var(--text);
+    }
+
+    .info-tile-value.changed {
+      color: var(--success);
+    }
+
+    /* Preview */
+    .preview-section {
+      margin-top: 28px;
+    }
+
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .preview-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0;
+    }
+
+    .preview-wrapper {
+      background:
+        repeating-conic-gradient(#1b2342 0% 25%, #131a30 0% 50%) 50% / 20px 20px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      overflow: auto;
+      max-height: 70vh;
+      text-align: center;
+    }
+
+    .preview-wrapper img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Button */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--border);
+    }
+
+    /* Comparison slider */
+    .comparison {
+      margin-top: 24px;
+      position: relative;
+      user-select: none;
+      max-width: 100%;
+      overflow: hidden;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+
+    .comparison img {
+      display: block;
+      width: 100%;
+      height: auto;
+      pointer-events: none;
+    }
+
+    .comparison-after {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      width: 50%;
+      overflow: hidden;
+      border-right: 2px solid white;
+    }
+
+    .comparison-after img {
+      width: auto;
+      min-width: 100%;
+      max-width: none;
+      height: 100%;
+      object-fit: cover;
+      object-position: left center;
+    }
+
+    .comparison-handle {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 4px;
+      height: 100%;
+      background: white;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    .comparison-handle::after {
+      content: '⇔';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      color: #0b1020;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 700;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .comparison-label {
+      position: absolute;
+      top: 12px;
+      padding: 4px 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .comparison-label.before { left: 12px; }
+    .comparison-label.after { right: 12px; }
+
+    /* Loader */
+    .loader {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* How it works */
+    .how-it-works {
+      margin-top: 56px;
+    }
+
+    .how-it-works h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 20px;
+      text-align: center;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .step {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 20px;
+    }
+
+    .step-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: var(--accent-soft);
+      color: var(--accent-hover);
+      border-radius: 50%;
+      font-weight: 700;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+
+    .step h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin: 0 0 6px;
+    }
+
+    .step p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    footer a {
+      color: var(--accent-hover);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 640px) {
+      .container { padding: 32px 16px 60px; }
+      .card { padding: 20px; }
+      .upload-zone { padding: 40px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <span class="logo-dot"></span>
+        <span>PanoRaCo</span>
+      </div>
+      <h1>Panorama Ratio Corrector</h1>
+      <p class="subtitle">
+        Ajustez vos photos panoramiques au ratio 2:1 en étendant verticalement
+        la dernière ligne de pixels du haut. Téléchargement lossless, métadonnées préservées.
+      </p>
+    </header>
+
+    <main>
+      <section class="card">
+        <div class="upload-zone" id="uploadZone">
+          <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp" />
+          <span class="upload-icon">📁</span>
+          <p class="upload-title">Glissez votre photo ici ou cliquez pour parcourir</p>
+          <p class="upload-hint">Format panoramique recommandé (largeur &gt; 2 × hauteur)</p>
+          <p class="upload-formats">PNG · JPEG · WebP · BMP — jusqu'à 50 Mo</p>
+        </div>
+
+        <div id="statusArea"></div>
+
+        <div id="infoGrid" class="info-grid hidden"></div>
+
+        <div id="previewSection" class="preview-section hidden">
+          <div class="preview-header">
+            <h3 class="preview-title">Résultat — ratio 2:1</h3>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button id="resetBtn" class="btn btn-secondary">↺ Nouvelle photo</button>
+              <a id="downloadBtn" class="btn" download>⬇ Télécharger (lossless)</a>
+            </div>
+          </div>
+          <div class="preview-wrapper">
+            <img id="resultImage" alt="Résultat ajusté au ratio 2:1" />
+          </div>
+        </div>
+
+        <div id="comparisonSection" class="hidden" style="margin-top: 24px;">
+          <div class="preview-header">
+            <h3 class="preview-title">Comparaison avant / après</h3>
+            <span style="font-size: 12px; color: var(--text-muted);">← Glissez pour comparer →</span>
+          </div>
+          <div class="comparison" id="comparison">
+            <img id="compareBefore" alt="Avant" />
+            <div class="comparison-after" id="compareAfterWrap">
+              <img id="compareAfter" alt="Après" />
+            </div>
+            <div class="comparison-handle" id="compareHandle"></div>
+            <span class="comparison-label before">Original</span>
+            <span class="comparison-label after">2:1</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="how-it-works">
+        <h2>Comment ça marche</h2>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <h3>Upload</h3>
+            <p>Vous uploadez une photo panoramique. L'image est traitée entièrement dans votre navigateur, aucune donnée n'est envoyée à un serveur.</p>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <h3>Analyse du ratio</h3>
+            <p>On récupère la largeur et on la divise par 2 pour obtenir la hauteur cible d'un ratio 2:1 parfait.</p>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <h3>Vérification</h3>
+            <p>Si la hauteur cible est inférieure à la hauteur actuelle, l'application vous indique qu'elle n'est pas conçue pour ce type de modification.</p>
+          </div>
+          <div class="step">
+            <div class="step-num">4</div>
+            <h3>Extension vers le haut</h3>
+            <p>La dernière ligne de pixels en haut de l'image est étendue verticalement pour combler l'espace manquant jusqu'au ratio 2:1.</p>
+          </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <h3>Téléchargement lossless</h3>
+            <p>Le résultat est exporté en PNG sans perte, avec conservation de la qualité d'origine de l'image.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        <strong>PanoRaCo</strong> — Traitement 100% local dans votre navigateur ·
+        <a href="https://github.com/Minher0/PanoRaCo" target="_blank" rel="noopener">Code source</a>
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ============ DOM refs ============
+      const uploadZone = document.getElementById('uploadZone');
+      const fileInput = document.getElementById('fileInput');
+      const statusArea = document.getElementById('statusArea');
+      const infoGrid = document.getElementById('infoGrid');
+      const previewSection = document.getElementById('previewSection');
+      const resultImage = document.getElementById('resultImage');
+      const downloadBtn = document.getElementById('downloadBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const comparisonSection = document.getElementById('comparisonSection');
+      const compareBefore = document.getElementById('compareBefore');
+      const compareAfter = document.getElementById('compareAfter');
+      const compareAfterWrap = document.getElementById('compareAfterWrap');
+      const compareHandle = document.getElementById('compareHandle');
+      const comparison = document.getElementById('comparison');
+
+      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 Mo
+      const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp', 'image/bmp'];
+
+      // ============ Helpers ============
+      function setStatus(type, html) {
+        const icons = { info: 'ℹ️', success: '✅', warning: '⚠️', error: '❌' };
+        statusArea.innerHTML =
+          '<div class="message ' + type + '">' +
+          '<span class="message-icon">' + (icons[type] || 'ℹ️') + '</span>' +
+          '<div>' + html + '</div>' +
+          '</div>';
+      }
+
+      function clearStatus() { statusArea.innerHTML = ''; }
+
+      function fmtBytes(b) {
+        if (b < 1024) return b + ' o';
+        if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' Ko';
+        return (b / 1024 / 1024).toFixed(2) + ' Mo';
+      }
+
+      function loadImageFromFile(file) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => reject(new Error("Impossible de charger l'image."));
+          img.src = URL.createObjectURL(file);
+        });
+      }
+
+      /**
+       * Convertit n'importe quelle image source en canvas.
+       * Pour préserver un max de qualité, on ne ré-échantillonne pas.
+       */
+      function imageToCanvas(img) {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        const ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0);
+        return c;
+      }
+
+      /**
+       * Core: étend la dernière ligne de pixels du haut vers le haut
+       * pour atteindre la nouvelle hauteur cible.
+       *
+       * Règle métier :
+       *  - targetHeight = floor(width / 2)
+       *  - si targetHeight < currentHeight => erreur "pas conçu pour ça"
+       *  - sinon => étendre top row verticalement
+       */
+      function processImage(sourceCanvas) {
+        const W = sourceCanvas.width;
+        const H = sourceCanvas.height;
+        const targetHeight = Math.floor(W / 2);
+
+        const sCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
+
+        // Vérification de la règle métier
+        if (targetHeight < H) {
+          return {
+            ok: false,
+            reason: 'target_too_small',
+            W: W, H: H, targetHeight: targetHeight
+          };
+        }
+
+        if (targetHeight === H) {
+          // Déjà au ratio 2:1
+          return {
+            ok: true,
+            alreadyRatio: true,
+            W: W, H: H, targetHeight: targetHeight,
+            dataUrl: sourceCanvas.toDataURL('image/png')
+          };
+        }
+
+        const addPixels = targetHeight - H; // pixels à ajouter EN HAUT
+
+        // Récupère la dernière ligne de pixels en haut (y = 0)
+        const topRow = sCtx.getImageData(0, 0, W, 1);
+
+        // Crée le canvas de sortie
+        const out = document.createElement('canvas');
+        out.width = W;
+        out.height = targetHeight;
+        const oCtx = out.getContext('2d');
+
+        // 1) Remplit toute la zone supérieure ajoutée avec la ligne du haut
+        //    (on dessine la ligne 1px en la stretchant sur addPixels px)
+        //    Pour éviter tout flou bilinéaire sur 1px -> on préfère
+        //    répliquer pixel par pixel via putImageData d'une colonne étendue,
+        //    mais putImageData ne stretch pas. Donc on construit une ImageData
+        //    de la zone ajoutée en répliquant chaque pixel de la ligne du haut.
+        const addedImageData = oCtx.createImageData(W, addPixels);
+        const src = topRow.data;           // Uint8ClampedArray length W*4
+        const dst = addedImageData.data;   // Uint8ClampedArray length W*addPixels*4
+        for (let y = 0; y < addPixels; y++) {
+          const dstRowStart = y * W * 4;
+          dst.set(src, dstRowStart);
+        }
+        oCtx.putImageData(addedImageData, 0, 0);
+
+        // 2) Dessine l'image originale en dessous
+        oCtx.drawImage(sourceCanvas, 0, addPixels);
+
+        return {
+          ok: true,
+          alreadyRatio: false,
+          W: W, H: H, targetHeight: targetHeight, addPixels: addPixels,
+          dataUrl: out.toDataURL('image/png'),
+          resultCanvas: out
+        };
+      }
+
+      function showInfo(before, after, fileSize, addPixels) {
+        const ratioBefore = (before.w / before.h).toFixed(3);
+        const ratioAfter = (after.w / after.h).toFixed(2);
+        infoGrid.innerHTML = `
+          <div class="info-tile">
+            <div class="info-tile-label">Largeur</div>
+            <div class="info-tile-value">${before.w}<span style="color:var(--text-muted);font-size:13px;font-weight:400;"> px</span></div>
+          </div>
+          <div class="info-tile">
+            <div class="info-tile-label">Hauteur originale</div>
+            <div class="info-tile-value">${before.h}<span style="color:var(--text-muted);font-size:13px;font-weight:400;"> px</span></div>
+          </div>
+          <div class="info-tile">
+            <div class="info-tile-label">Hauteur cible (2:1)</div>
+            <div class="info-tile-value changed">${after.h}<span style="color:var(--success);font-size:13px;font-weight:400;"> px</span></div>
+          </div>
+          <div class="info-tile">
+            <div class="info-tile-label">Pixels ajoutés en haut</div>
+            <div class="info-tile-value changed">+${addPixels}<span style="color:var(--success);font-size:13px;font-weight:400;"> px</span></div>
+          </div>
+          <div class="info-tile">
+            <div class="info-tile-label">Ratio avant</div>
+            <div class="info-tile-value">${ratioBefore}<span style="color:var(--text-muted);font-size:13px;font-weight:400;">:1</span></div>
+          </div>
+          <div class="info-tile">
+            <div class="info-tile-label">Ratio après</div>
+            <div class="info-tile-value changed">${ratioAfter}<span style="color:var(--success);font-size:13px;font-weight:400;">:1</span></div>
+          </div>
+          <div class="info-tile">
+            <div class="info-tile-label">Taille du fichier</div>
+            <div class="info-tile-value" style="font-size:14px;">${fmtBytes(fileSize)}</div>
+          </div>
+          <div class="info-tile">
+            <div class="info-tile-label">Format export</div>
+            <div class="info-tile-value" style="font-size:14px;color:var(--success);">PNG lossless</div>
+          </div>
+        `;
+        infoGrid.classList.remove('hidden');
+      }
+
+      function reset() {
+        statusArea.innerHTML = '';
+        infoGrid.classList.add('hidden');
+        previewSection.classList.add('hidden');
+        comparisonSection.classList.add('hidden');
+        fileInput.value = '';
+      }
+
+      async function handleFile(file) {
+        clearStatus();
+        infoGrid.classList.add('hidden');
+        previewSection.classList.add('hidden');
+        comparisonSection.classList.add('hidden');
+
+        if (!file) return;
+
+        // Validation type
+        if (!ACCEPTED.includes(file.type)) {
+          setStatus('error',
+            '<strong>Format non supporté.</strong> Formats acceptés : PNG, JPEG, WebP, BMP. ' +
+            'Type détecté : <code>' + (file.type || 'inconnu') + '</code>.');
+          return;
+        }
+
+        // Validation taille
+        if (file.size > MAX_FILE_SIZE) {
+          setStatus('error',
+            '<strong>Fichier trop volumineux.</strong> Taille : ' + fmtBytes(file.size) +
+            '. Maximum : 50 Mo.');
+          return;
+        }
+
+        setStatus('info', '<strong>Analyse en cours…</strong> Chargement de l\'image.');
+
+        try {
+          const img = await loadImageFromFile(file);
+          const sourceCanvas = imageToCanvas(img);
+
+          const W = sourceCanvas.width;
+          const H = sourceCanvas.height;
+          const targetHeight = Math.floor(W / 2);
+
+          // Cas 1 : target < current => erreur métier
+          if (targetHeight < H) {
+            const ratio = (W / H).toFixed(3);
+            setStatus('warning',
+              '<strong>Cette application n\'est pas conçue pour ce type de modification.</strong><br><br>' +
+              'Votre image fait <code>' + W + ' × ' + H + ' px</code> (ratio ' + ratio + ':1).<br>' +
+              'La hauteur cible pour un ratio 2:1 serait <code>' + targetHeight + ' px</code>, ' +
+              'ce qui est <strong>inférieur</strong> à la hauteur actuelle (' + H + ' px).<br><br>' +
+              'PanoRaCo ne fait qu\'<em>ajouter</em> de la hauteur en étendant la ligne du haut — ' +
+              'il ne sait pas recadrer ni réduire une image. ' +
+              'Utilisez un outil de recadrage pour ce cas.');
+            showInfo(
+              { w: W, h: H },
+              { w: W, h: targetHeight },
+              file.size,
+              0
+            );
+            return;
+          }
+
+          // Cas 2 : target === current => déjà au ratio
+          if (targetHeight === H) {
+            setStatus('success',
+              '<strong>Votre image est déjà au ratio 2:1.</strong> ' +
+              'Dimensions : <code>' + W + ' × ' + H + ' px</code>. ' +
+              'Aucune modification nécessaire.');
+            const result = processImage(sourceCanvas);
+            resultImage.src = result.dataUrl;
+            downloadBtn.href = result.dataUrl;
+            downloadBtn.setAttribute('download', 'panoraco-' + sanitizeFilename(file.name) + '.png');
+            previewSection.classList.remove('hidden');
+            showInfo(
+              { w: W, h: H },
+              { w: W, h: targetHeight },
+              file.size,
+              0
+            );
+            return;
+          }
+
+          // Cas 3 : target > current => traitement normal
+          const result = processImage(sourceCanvas);
+          if (!result.ok) {
+            setStatus('error', '<strong>Erreur inattendue pendant le traitement.</strong>');
+            return;
+          }
+
+          const addPixels = result.addPixels;
+          setStatus('success',
+            '<strong>Image ajustée au ratio 2:1.</strong> ' +
+            'La dernière ligne de pixels du haut a été étendue verticalement de <code>+' + addPixels +
+            ' px</code>. Téléchargez le résultat en PNG lossless.');
+
+          // Affichage résultat
+          resultImage.src = result.dataUrl;
+          downloadBtn.href = result.dataUrl;
+          downloadBtn.setAttribute('download', 'panoraco-' + sanitizeFilename(file.name) + '.png');
+          previewSection.classList.remove('hidden');
+
+          // Comparaison avant/après
+          const beforeUrl = sourceCanvas.toDataURL('image/png');
+          compareBefore.src = beforeUrl;
+          compareAfter.src = result.dataUrl;
+          comparisonSection.classList.remove('hidden');
+          initComparison();
+
+          showInfo(
+            { w: W, h: H },
+            { w: W, h: targetHeight },
+            file.size,
+            addPixels
+          );
+        } catch (err) {
+          console.error(err);
+          setStatus('error',
+            '<strong>Erreur lors du traitement.</strong> ' +
+            (err && err.message ? err.message : 'Erreur inconnue.'));
+        }
+      }
+
+      function sanitizeFilename(name) {
+        return name
+          .replace(/\.[^.]+$/, '')  // retire l'extension
+          .replace(/[^a-zA-Z0-9-_]/g, '_')
+          .substring(0, 40);
+      }
+
+      // ============ Comparison slider ============
+      function initComparison() {
+        let dragging = false;
+        const setPos = (clientX) => {
+          const rect = comparison.getBoundingClientRect();
+          let pct = ((clientX - rect.left) / rect.width) * 100;
+          pct = Math.max(0, Math.min(100, pct));
+          compareAfterWrap.style.width = pct + '%';
+          compareHandle.style.left = pct + '%';
+        };
+        const onDown = (e) => {
+          dragging = true;
+          const x = e.touches ? e.touches[0].clientX : e.clientX;
+          setPos(x);
+        };
+        const onMove = (e) => {
+          if (!dragging) return;
+          const x = e.touches ? e.touches[0].clientX : e.clientX;
+          setPos(x);
+        };
+        const onUp = () => { dragging = false; };
+
+        comparison.addEventListener('mousedown', onDown);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        comparison.addEventListener('touchstart', onDown, { passive: true });
+        window.addEventListener('touchmove', onMove, { passive: true });
+        window.addEventListener('touchend', onUp);
+
+        // Init à 50%
+        compareAfterWrap.style.width = '50%';
+        compareHandle.style.left = '50%';
+      }
+
+      // ============ Event listeners ============
+      fileInput.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) handleFile(f);
+      });
+
+      ['dragenter', 'dragover'].forEach(ev => {
+        uploadZone.addEventListener(ev, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          uploadZone.classList.add('dragover');
+        });
+      });
+      ['dragleave', 'drop'].forEach(ev => {
+        uploadZone.addEventListener(ev, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          uploadZone.classList.remove('dragover');
+        });
+      });
+      uploadZone.addEventListener('drop', (e) => {
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) handleFile(f);
+      });
+
+      resetBtn.addEventListener('click', reset);
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "public": true,
+  "github": {
+    "enabled": true,
+    "silent": true
+  },
+  "cleanUrls": true,
+  "trailingSlash": false
+}

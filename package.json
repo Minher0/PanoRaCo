@@ -1,0 +1,11 @@
+{
+  "name": "panoraco",
+  "version": "1.0.0",
+  "description": "Panorama Ratio Corrector - Adjust panorama photo height to 2:1 ratio by extending the top pixel row",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve .",
+    "build": "echo 'Static site, no build step'"
+  },
+  "license": "MIT"
+}
