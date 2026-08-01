@@ -1,0 +1,37 @@
+{
+  "name": "PanoRaCo - Panorama Ratio Corrector",
+  "short_name": "PanoRaCo",
+  "description": "Ajustez vos panoramas au ratio 2:1 en étendant la dernière ligne de pixels du haut. Traitement local, export lossless.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#0e1410",
+  "theme_color": "#0e1410",
+  "lang": "fr",
+  "dir": "ltr",
+  "categories": ["photography", "utilities", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-16.png", "sizes": "16x16", "type": "image/png" },
+    { "src": "/icons/icon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/icons/icon-48.png", "sizes": "48x48", "type": "image/png" },
+    { "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Upload une photo",
+      "short_name": "Upload",
+      "description": "Ouvrir le sélecteur de fichier directement",
+      "url": "/?action=upload",
+      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}

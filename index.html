@@ -11,8 +11,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="icon" type="image/png" href="/favicon.png" sizes="256x256" />
+  <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32" />
+  <link rel="icon" type="image/png" href="/favicon-16.png" sizes="16x16" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="PanoRaCo" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <style>
     /* ============================================================
        PanoRaCo · Design tokens
@@ -156,17 +163,18 @@
       letter-spacing: -0.01em;
     }
     .brand-mark {
-      width: 26px;
-      height: 26px;
+      width: 28px;
+      height: 28px;
       border-radius: 7px;
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
-      display: grid;
-      place-items: center;
-      color: #1a1a1a;
-      font-weight: 800;
-      font-size: 13px;
-      font-family: var(--font-mono);
-      box-shadow: 0 2px 8px rgba(217, 119, 6, 0.35);
+      overflow: hidden;
+      display: block;
+      flex-shrink: 0;
+    }
+    .brand-mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
     .brand-name { letter-spacing: -0.02em; }
     .brand-name .accent { color: var(--accent-hover); }
@@ -813,6 +821,156 @@
       .process { padding: 64px 0; }
       .steps { grid-template-columns: 1fr; }
     }
+
+    /* ============================================================
+       Install modal (PWA install instructions for iOS/desktop)
+       ============================================================ */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s var(--ease-out);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-backdrop.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      overflow: hidden;
+      transform: translateY(12px) scale(0.97);
+      transition: transform 0.25s var(--ease-out);
+    }
+    .modal-backdrop.is-visible .modal {
+      transform: translateY(0) scale(1);
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 22px 24px 18px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .modal-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .modal-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .modal-title-block h3 {
+      margin: 0 0 2px;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .modal-title-block p {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .modal-body {
+      padding: 22px 24px;
+    }
+    .modal-body p {
+      margin: 0 0 16px;
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--text);
+    }
+    .modal-steps {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .modal-steps li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: var(--text);
+    }
+    .modal-steps .step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: var(--accent-soft);
+      color: var(--accent-hover);
+      display: grid;
+      place-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--accent-border);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .modal-steps .step-text {
+      flex: 1;
+    }
+    .modal-steps .step-text strong {
+      font-weight: 600;
+    }
+    .modal-steps kbd {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      padding: 2px 6px;
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+    }
+    .modal-share-icon {
+      display: inline-block;
+      vertical-align: -3px;
+      color: var(--accent-hover);
+      margin: 0 2px;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      padding: 0 24px 22px;
+    }
+    .modal-actions .btn { flex: 1; justify-content: center; }
+    .modal-platform-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-pill);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+    .modal-platform-tag::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-hover);
+    }
   </style>
 </head>
 <body>
@@ -820,13 +978,13 @@
   <header class="nav">
     <div class="container nav-inner">
       <a href="/" class="brand" aria-label="PanoRaCo accueil">
-        <span class="brand-mark">P</span>
+        <span class="brand-mark"><img src="/icons/icon-96.png" alt="" width="28" height="28" /></span>
         <span class="brand-name">Pano<span class="accent">RaCo</span></span>
       </a>
       <nav class="nav-links" aria-label="Navigation principale">
         <a href="#process">Comment ça marche</a>
         <a href="#source">Code source</a>
-        <a href="#" class="nav-cta">Télécharger l'app</a>
+        <button type="button" id="installBtn" class="nav-cta">Télécharger l'app</button>
       </nav>
     </div>
   </header>
@@ -995,6 +1153,28 @@
       </span>
     </div>
   </footer>
+
+  <!-- ============ INSTALL MODAL ============ -->
+  <div id="installModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-icon">
+          <img src="/icons/icon-192.png" alt="" width="48" height="48" />
+        </div>
+        <div class="modal-title-block">
+          <h3 id="modalTitle">Installer PanoRaCo</h3>
+          <p id="modalSubtitle">Accès rapide depuis votre écran d'accueil</p>
+        </div>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Content injected by JS based on platform -->
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="modalCloseBtn">Plus tard</button>
+        <button type="button" class="btn btn-primary" id="modalActionBtn">Installer</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ============ SCRIPT ============ -->
   <script>
@@ -1336,6 +1516,172 @@
       });
 
       resetBtn.addEventListener('click', reset);
+
+      // ---------- PWA: Service Worker registration ----------
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.warn('SW registration failed:', err);
+          });
+        });
+      }
+
+      // ---------- PWA: Install button logic ----------
+      const installBtn = document.getElementById('installBtn');
+      const installModal = document.getElementById('installModal');
+      const modalBody = document.getElementById('modalBody');
+      const modalTitle = document.getElementById('modalTitle');
+      const modalSubtitle = document.getElementById('modalSubtitle');
+      const modalActionBtn = document.getElementById('modalActionBtn');
+      const modalCloseBtn = document.getElementById('modalCloseBtn');
+      let deferredPrompt = null;
+
+      // Detect platform
+      function detectPlatform() {
+        const ua = navigator.userAgent;
+        const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isAndroid = /Android/.test(ua);
+        const isMacOS = /Macintosh|Mac OS X/.test(ua) && !isIOS;
+        const isWindows = /Windows/.test(ua);
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        return { isIOS, isAndroid, isMacOS, isWindows, isStandalone };
+      }
+
+      // SVG icons used in modal steps
+      const SHARE_ICON = '<svg class="modal-share-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>';
+      const PLUS_ICON = '<svg class="modal-share-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+
+      // Build modal content based on platform
+      function buildModalContent(platform) {
+        if (platform.isStandalone) {
+          modalTitle.textContent = 'App déjà installée';
+          modalSubtitle.textContent = 'PanoRaCo tourne en mode standalone';
+          modalBody.innerHTML = `
+            <span class="modal-platform-tag">Mode installé</span>
+            <p>PanoRaCo est déjà installé sur cet appareil. Vous pouvez l'utiliser hors-ligne, et elle apparaît dans votre liste d'applications.</p>
+          `;
+          modalActionBtn.textContent = 'Fermer';
+          modalActionBtn.onclick = () => closeModal();
+          modalCloseBtn.style.display = 'none';
+          return;
+        }
+
+        if (platform.isIOS) {
+          modalTitle.textContent = 'Installer sur iPhone / iPad';
+          modalSubtitle.textContent = 'Ajouter à l\'écran d\'accueil';
+          modalBody.innerHTML = `
+            <span class="modal-platform-tag">iOS · Safari</span>
+            <p>Pour installer PanoRaCo comme une app native sur votre iPhone ou iPad :</p>
+            <ul class="modal-steps">
+              <li>
+                <span class="step-num">1</span>
+                <span class="step-text">Ouvrez cette page dans <strong>Safari</strong> (les autres navigateurs iOS ne supportent pas l'installation).</span>
+              </li>
+              <li>
+                <span class="step-num">2</span>
+                <span class="step-text">Touchez le bouton <strong>Partager</strong> ${SHARE_ICON} en bas de l'écran.</span>
+              </li>
+              <li>
+                <span class="step-num">3</span>
+                <span class="step-text">Faites défiler et touchez <strong>Sur l'écran d'accueil</strong> ${PLUS_ICON}.</span>
+              </li>
+              <li>
+                <span class="step-num">4</span>
+                <span class="step-text">Confirmez avec <strong>Ajouter</strong> en haut à droite. L'app apparaît avec son icône.</span>
+              </li>
+            </ul>
+            <p style="font-size:12.5px;color:var(--text-muted);margin:0;">Une fois installée, PanoRaCo fonctionne hors-ligne et s'ouvre en plein écran sans la barre Safari.</p>
+          `;
+          modalActionBtn.textContent = 'J\'ai compris';
+          modalActionBtn.onclick = () => closeModal();
+          modalCloseBtn.style.display = '';
+        } else if (platform.isAndroid || platform.isWindows || platform.isMacOS || platform.isStandalone === false) {
+          // Chrome/Edge/Brave on desktop & Android — supports beforeinstallprompt
+          modalTitle.textContent = 'Installer PanoRaCo';
+          modalSubtitle.textContent = 'App native sur votre appareil';
+          const platformName = platform.isAndroid ? 'Android' : (platform.isMacOS ? 'macOS' : (platform.isWindows ? 'Windows' : 'votre appareil'));
+          modalBody.innerHTML = `
+            <span class="modal-platform-tag">${platformName} · PWA</span>
+            <p>Installez PanoRaCo comme une application native. Elle apparaîtra dans votre liste d'applications, s'ouvrira dans sa propre fenêtre, et fonctionnera hors-ligne.</p>
+            <ul class="modal-steps">
+              <li>
+                <span class="step-num">1</span>
+                <span class="step-text">Cliquez sur <strong>Installer</strong> ci-dessous.</span>
+              </li>
+              <li>
+                <span class="step-num">2</span>
+                <span class="step-text">Confirmez l'installation dans la fenêtre de dialogue du navigateur.</span>
+              </li>
+              <li>
+                <span class="step-num">3</span>
+                <span class="step-text">Lancez PanoRaCo depuis votre écran d'accueil ou menu d'applications.</span>
+              </li>
+            </ul>
+          `;
+          modalActionBtn.textContent = 'Installer maintenant';
+          modalActionBtn.onclick = () => triggerNativeInstall();
+          modalCloseBtn.style.display = '';
+        }
+      }
+
+      function triggerNativeInstall() {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then((choice) => {
+            if (choice.outcome === 'accepted') {
+              console.log('PWA installed');
+            }
+            deferredPrompt = null;
+            closeModal();
+            installBtn.textContent = 'App installée';
+            installBtn.disabled = true;
+          });
+        } else {
+          closeModal();
+        }
+      }
+
+      function openModal() {
+        const platform = detectPlatform();
+        buildModalContent(platform);
+        installModal.classList.add('is-visible');
+        modalActionBtn.focus();
+      }
+      function closeModal() {
+        installModal.classList.remove('is-visible');
+      }
+
+      installBtn.addEventListener('click', openModal);
+      modalCloseBtn.addEventListener('click', closeModal);
+      installModal.addEventListener('click', (e) => {
+        if (e.target === installModal) closeModal();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && installModal.classList.contains('is-visible')) closeModal();
+      });
+
+      // Capture the beforeinstallprompt event (Chrome/Edge/Android)
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installBtn.textContent = 'Installer l\'app';
+        // If the user hasn't dismissed before, auto-show after 3s
+        if (!sessionStorage.getItem('panoraco-install-dismissed')) {
+          // Don't auto-show; let the user click. But update the button label.
+        }
+      });
+
+      // Detect if already installed (display-mode: standalone)
+      window.addEventListener('appinstalled', () => {
+        installBtn.textContent = 'App installée';
+        installBtn.disabled = true;
+        deferredPrompt = null;
+      });
+
+      // If running in standalone mode, hide install button
+      if (window.matchMedia('(display-mode: standalone)').matches) {
+        installBtn.style.display = 'none';
+      }
 
       // ---------- Init ----------
       setupReveal();
