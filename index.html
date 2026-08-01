@@ -1268,6 +1268,143 @@
         });
       }
 
+      /**
+       * ============================================================
+       * XMP metadata injection for 360° panorama detection
+       *
+       * Services like Facebook, Google Photos, YouTube, and Flickr detect
+       * 360° panoramas by reading XMP metadata in the GPano namespace
+       * (http://ns.google.com/photos/1.0/panorama/).
+       *
+       * We inject an iTXt chunk (keyword "XML:com.adobe.xmp") containing
+       * an XMP packet with GPano properties, right after the IHDR chunk.
+       *
+       * For a full equirectangular 360° panorama (2:1 ratio):
+       *   ProjectionType = "equirectangular"
+       *   FullPanoWidthPixels = image width  (= 360° horizontal)
+       *   FullPanoHeightPixels = image height (= 180° vertical)
+       *   CroppedAreaImageWidthPixels = image width (no crop)
+       *   CroppedAreaImageHeightPixels = image height (no crop)
+       *   CroppedAreaLeftPixels = 0
+       *   CroppedAreaTopPixels = 0
+       *   UsePanoramaViewer = True (Facebook shows in 360° viewer)
+       * ============================================================ */
+
+      // CRC32 table for PNG chunks (polynomial 0xEDB88320, reflected)
+      const _crcTable = (function () {
+        const t = new Uint32Array(256);
+        for (let n = 0; n < 256; n++) {
+          let c = n;
+          for (let k = 0; k < 8; k++) {
+            c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+          }
+          t[n] = c >>> 0;
+        }
+        return t;
+      })();
+
+      function crc32(bytes) {
+        let crc = 0xFFFFFFFF;
+        for (let i = 0; i < bytes.length; i++) {
+          crc = _crcTable[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+        }
+        return (crc ^ 0xFFFFFFFF) >>> 0;
+      }
+
+      /**
+       * Build the XMP packet string with GPano 360° metadata.
+       */
+      function buildXMPacket(width, height) {
+        // The xpacket wrapper tells XMP parsers where the metadata begins/ends.
+        // The rdf:Description carries the GPano namespace properties.
+        return '<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>\n' +
+          '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="PanoRaCo">\n' +
+          '  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n' +
+          '    <rdf:Description rdf:about=""' +
+          ' xmlns:GPano="http://ns.google.com/photos/1.0/panorama/"' +
+          ' GPano:ProjectionType="equirectangular"' +
+          ' GPano:UsePanoramaViewer="True"' +
+          ' GPano:CroppedAreaImageWidthPixels="' + width + '"' +
+          ' GPano:CroppedAreaImageHeightPixels="' + height + '"' +
+          ' GPano:FullPanoWidthPixels="' + width + '"' +
+          ' GPano:FullPanoHeightPixels="' + height + '"' +
+          ' GPano:CroppedAreaLeftPixels="0"' +
+          ' GPano:CroppedAreaTopPixels="0"' +
+          ' GPano:PoseHeadingDegrees="0"' +
+          ' GPano:InitialViewHeadingDegrees="0"' +
+          ' GPano:InitialViewPitchDegrees="0"' +
+          ' GPano:InitialViewRollDegrees="0"' +
+          ' GPano:InitialHorizontalFOVDegrees="75"\n' +
+          '    />\n' +
+          '  </rdf:RDF>\n' +
+          '</x:xmpmeta>\n' +
+          '<?xpacket end="w"?>';
+      }
+
+      /**
+       * Build a PNG iTXt chunk containing XMP metadata.
+       * Chunk format: length(4) + type(4) "iTXt" + data + crc(4)
+       * iTXt data: keyword\0 + compressionFlag(1) + compressionMethod(1)
+       *            + languageTag\0 + translatedKeyword\0 + text
+       */
+      function buildITXtChunk(xmpString) {
+        const encoder = new TextEncoder();
+        const keywordBytes = encoder.encode('XML:com.adobe.xmp');
+        const xmpBytes = encoder.encode(xmpString);
+
+        // data = keyword + \0 + compFlag + compMethod + langTag\0 + translatedKeyword\0 + xmp
+        const dataLen = keywordBytes.length + 1 + 1 + 1 + 1 + 1 + xmpBytes.length;
+        const data = new Uint8Array(dataLen);
+        let off = 0;
+        data.set(keywordBytes, off); off += keywordBytes.length;
+        data[off++] = 0;  // null separator after keyword
+        data[off++] = 0;  // compression flag (0 = no compression)
+        data[off++] = 0;  // compression method (0)
+        data[off++] = 0;  // empty language tag (null-terminated)
+        data[off++] = 0;  // empty translated keyword (null-terminated)
+        data.set(xmpBytes, off);
+
+        // Build chunk: length(4) + type(4) + data + crc(4)
+        const chunk = new Uint8Array(12 + dataLen);
+        const dv = new DataView(chunk.buffer);
+        dv.setUint32(0, dataLen);          // length
+        chunk[4] = 0x69; // 'i'
+        chunk[5] = 0x54; // 'T'
+        chunk[6] = 0x58; // 'X'
+        chunk[7] = 0x74; // 't'
+        chunk.set(data, 8);
+        const crc = crc32(chunk.subarray(4, 8 + dataLen));
+        dv.setUint32(8 + dataLen, crc);
+        return chunk;
+      }
+
+      /**
+       * Inject an iTXt XMP chunk into a PNG right after the IHDR chunk.
+       * PNG structure: 8-byte signature + chunks (IHDR is always first).
+       */
+      function injectXMPIntoPNG(pngBytes, width, height) {
+        const xmp = buildXMPacket(width, height);
+        const itxt = buildITXtChunk(xmp);
+
+        // PNG signature = 8 bytes
+        // IHDR chunk = 4(length) + 4(type) + 13(data) + 4(crc) = 25 bytes
+        // So insert after byte 8 + 25 = 33
+        const insertPos = 8 + 25;
+
+        const result = new Uint8Array(pngBytes.length + itxt.length);
+        result.set(pngBytes.subarray(0, insertPos), 0);
+        result.set(itxt, insertPos);
+        result.set(pngBytes.subarray(insertPos), insertPos + itxt.length);
+        return result;
+      }
+
+      /**
+       * Read a Blob as Uint8Array.
+       */
+      function blobToBytes(blob) {
+        return blob.arrayBuffer().then(ab => new Uint8Array(ab));
+      }
+
 
       function makeBlobUrl(blob) {
         const url = URL.createObjectURL(blob);
@@ -1321,7 +1458,13 @@
         }
 
         // Encode via browser's native canvas.toBlob (RGBA PNG, lossless)
-        const blob = await canvasToBlob(outCanvas);
+        const rawBlob = await canvasToBlob(outCanvas);
+
+        // Inject XMP 360° metadata (GPano namespace) so services detect
+        // the image as an equirectangular 360° panorama
+        const rawBytes = await blobToBytes(rawBlob);
+        const withXMP = injectXMPIntoPNG(rawBytes, W, targetHeight);
+        const blob = new Blob([withXMP], { type: 'image/png' });
         const blobUrl = makeBlobUrl(blob);
 
         return {
@@ -1329,6 +1472,7 @@
           alreadyRatio: targetHeight === H,
           W: W, H: H, targetHeight: targetHeight, addPixels: addPixels,
           blob: blob, blobUrl: blobUrl, outputSize: blob.size,
+          hasXMP: true,
         };
       }
 
@@ -1343,7 +1487,8 @@
           { label: 'Ratio avant', value: ratioBefore, unit: ':1', changed: false },
           { label: 'Ratio après', value: ratioAfter, unit: ':1', changed: !isWarning },
           { label: 'Taille fichier', value: fmtBytes(fileSize), unit: '', changed: false, mono: false },
-          { label: 'Export', value: 'PNG', unit: 'lossless', changed: false }
+          { label: 'Export', value: 'PNG', unit: 'lossless', changed: false },
+          { label: 'Métadonnées', value: '360°', unit: 'XMP', changed: !isWarning }
         ];
 
         readout.innerHTML = cells.map(c => {
@@ -1448,7 +1593,7 @@
             setStatus('success',
               '<strong>Image ajustée au ratio 2:1.</strong> La ligne de pixels du haut a été ' +
               'étendue verticalement de <code>+' + result.addPixels + ' px</code>. ' +
-              'Export PNG lossless (' + fmtBytes(result.outputSize) + ').');
+              'Export PNG lossless (' + fmtBytes(result.outputSize) + ') avec métadonnées 360° XMP.');
           }
 
           resultImg.src = result.blobUrl;
