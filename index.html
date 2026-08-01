@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js" defer></script>
   <style>
     /* ============================================================
        PanoRaCo · Design tokens
@@ -642,6 +643,12 @@
 
     /* ============================================================
        Comparison slider
+       Structure:
+       - .compare-img-base   = AFTER image (taller), base layer, sets container height
+       - .compare-img-overlay = BEFORE image (shorter), absolute, bottom-aligned,
+                                clipped via clip-path to show only the left portion
+       Left side  → Original (before, clipped)
+       Right side → 2:1 (after, base)
        ============================================================ */
     .compare {
       position: relative;
@@ -651,6 +658,8 @@
       border: 1px solid var(--border-soft);
       background: var(--bg-elev-2);
       margin-top: 12px;
+      cursor: ew-resize;
+      touch-action: pan-y;
     }
     .compare-img {
       display: block;
@@ -659,22 +668,20 @@
       pointer-events: none;
       -webkit-user-drag: none;
     }
-    .compare-after-wrap {
-      position: absolute;
-      top: 0;
-      left: 0;
-      height: 100%;
-      width: 50%;
-      overflow: hidden;
-      will-change: width;
+    .compare-img-base {
+      /* AFTER image — determines container height */
+      position: relative;
+      z-index: 1;
     }
-    .compare-after-wrap .compare-img {
-      width: auto;
-      height: 100%;
-      max-width: none;
-      min-width: 100%;
-      object-fit: cover;
-      object-position: left center;
+    .compare-img-overlay {
+      /* BEFORE image — shorter, bottom-aligned, clipped to left portion */
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      z-index: 2;
+      clip-path: inset(0 50% 0 0);
+      will-change: clip-path;
     }
     .compare-handle {
       position: absolute;
@@ -685,6 +692,7 @@
       background: var(--accent-hover);
       transform: translateX(-50%);
       pointer-events: none;
+      z-index: 3;
       will-change: left;
       box-shadow: 0 0 12px rgba(245, 158, 11, 0.5);
     }
@@ -726,9 +734,11 @@
       letter-spacing: 0.05em;
       text-transform: uppercase;
       border: 1px solid var(--border-soft);
+      z-index: 4;
+      pointer-events: none;
     }
-    .compare-label-before { left: 12px; }
-    .compare-label-after { right: 12px; color: var(--accent-hover); }
+    .compare-label-left { left: 12px; }
+    .compare-label-right { right: 12px; color: var(--accent-hover); }
 
     /* ============================================================
        Process section (How it works)
@@ -826,6 +836,44 @@
     .footer-inner .mono {
       font-family: var(--font-mono);
       font-size: 12px;
+    }
+
+    /* ============================================================
+       Loading overlay (encoding phase)
+       ============================================================ */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(14, 20, 16, 0.88);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s var(--ease-out);
+    }
+    .loading-overlay.is-visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .loading-spinner {
+      width: 44px;
+      height: 44px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .loading-text {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      letter-spacing: 0.02em;
     }
 
     /* ============================================================
@@ -982,7 +1030,7 @@
             <span class="sep"></span>
             <span>BMP</span>
             <span class="sep"></span>
-            <span>50 Mo max</span>
+            <span>aucune limite de taille</span>
           </span>
         </div>
 
@@ -1022,13 +1070,11 @@
             <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-soft);">Glissez la poignée</span>
           </div>
           <div class="compare" id="compare" style="border-radius:0 0 var(--r-md) var(--r-md);border-top:none;">
-            <img id="compareBefore" class="compare-img" alt="Image originale" />
-            <div class="compare-after-wrap" id="compareAfterWrap">
-              <img id="compareAfter" class="compare-img" alt="Image ajustée" />
-            </div>
+            <img id="compareAfter" class="compare-img compare-img-base" alt="Image ajustée au ratio 2:1" />
+            <img id="compareBefore" class="compare-img compare-img-overlay" alt="Image originale" />
             <div class="compare-handle" id="compareHandle" aria-hidden="true"></div>
-            <span class="compare-label compare-label-before">Original</span>
-            <span class="compare-label compare-label-after">2:1</span>
+            <span class="compare-label compare-label-left">Original</span>
+            <span class="compare-label compare-label-right">2:1</span>
           </div>
         </div>
       </div>
@@ -1100,6 +1146,12 @@
     </div>
   </footer>
 
+  <!-- ============ LOADING OVERLAY ============ -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">Encodage…</div>
+  </div>
+
   <!-- ============ SCRIPT ============ -->
   <script>
     (function () {
@@ -1119,13 +1171,15 @@
       const compareSection = document.getElementById('compareSection');
       const compareBefore = document.getElementById('compareBefore');
       const compareAfter = document.getElementById('compareAfter');
-      const compareAfterWrap = document.getElementById('compareAfterWrap');
       const compareHandle = document.getElementById('compareHandle');
       const compare = document.getElementById('compare');
       const panelStatus = document.getElementById('panel-status');
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      const loadingText = document.getElementById('loadingText');
 
-      const MAX_FILE_SIZE = 50 * 1024 * 1024;
       const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp', 'image/bmp'];
+      const MAX_CANVAS_PIXELS = 100 * 1000 * 1000; // 100 Mpx safety — browser canvas limit
+      let currentBlobUrls = [];
 
       // ---------- Utilities ----------
       function fmtBytes(b) {
@@ -1185,10 +1239,234 @@
       }
 
       /**
-       * Core: extend the top pixel row vertically to reach 2:1 target height.
-       * Returns { ok, ... } — caller decides what to show.
+       * ============================================================
+       * Custom PNG encoder
+       * Why: canvas.toDataURL('image/png') always outputs RGBA (color type 6),
+       * even when the image has no alpha. This doubles the file size for RGB
+       * photos. We detect alpha ourselves, encode as RGB (color type 2) when
+       * possible, and use Paeth adaptive filtering + zlib level 9 for maximum
+       * compression — matching what Photoshop/GIMP produce.
+       * ============================================================
        */
-      function processImage(sourceCanvas) {
+
+      // CRC32 lookup table (PNG spec)
+      const _crcTable = (function () {
+        const t = new Uint32Array(256);
+        for (let n = 0; n < 256; n++) {
+          let c = n;
+          for (let k = 0; k < 8; k++) {
+            c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+          }
+          t[n] = c >>> 0;
+        }
+        return t;
+      })();
+
+      function crc32(bytes) {
+        let crc = 0xFFFFFFFF;
+        for (let i = 0; i < bytes.length; i++) {
+          crc = _crcTable[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+        }
+        return (crc ^ 0xFFFFFFFF) >>> 0;
+      }
+
+      function makeChunk(type, data) {
+        const chunk = new Uint8Array(12 + data.length);
+        const dv = new DataView(chunk.buffer);
+        dv.setUint32(0, data.length);
+        chunk[4] = type.charCodeAt(0);
+        chunk[5] = type.charCodeAt(1);
+        chunk[6] = type.charCodeAt(2);
+        chunk[7] = type.charCodeAt(3);
+        chunk.set(data, 8);
+        dv.setUint32(8 + data.length, crc32(chunk.subarray(4, 8 + data.length)));
+        return chunk;
+      }
+
+      /**
+       * Encode a canvas to a PNG Blob.
+       * - Detects if alpha channel is all-opaque → encodes as RGB (3 bytes/px)
+       * - Otherwise encodes as RGBA (4 bytes/px)
+       * - Uses Paeth filter (filter type 4) on every scanline — best single
+       *   filter for photographic content
+       * - Compresses with pako zlib level 9
+       * Falls back to canvas.toBlob if pako is unavailable.
+       */
+      function encodePNG(canvas) {
+        return new Promise((resolve, reject) => {
+          const W = canvas.width;
+          const H = canvas.height;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          const imageData = ctx.getImageData(0, 0, W, H);
+          const rgba = imageData.data;
+
+          // Check if pako is loaded
+          if (typeof pako === 'undefined') {
+            console.warn('pako not loaded, falling back to canvas.toBlob (larger file size)');
+            canvas.toBlob(resolve, 'image/png');
+            return;
+          }
+
+          try {
+            // Detect if alpha is all opaque (255)
+            let allOpaque = true;
+            for (let i = 3; i < rgba.length; i += 4) {
+              if (rgba[i] !== 255) { allOpaque = false; break; }
+            }
+
+            const bpp = allOpaque ? 3 : 4;       // bytes per pixel
+            const colorType = allOpaque ? 2 : 6;   // 2=RGB, 6=RGBA
+            const stride = W * bpp;
+            const totalPixels = W * H;
+
+            // If all opaque, strip alpha to save 25% on raw data
+            let pixels;
+            if (allOpaque) {
+              pixels = new Uint8Array(totalPixels * 3);
+              for (let i = 0, j = 0; i < rgba.length; i += 4, j += 3) {
+                pixels[j] = rgba[i];
+                pixels[j + 1] = rgba[i + 1];
+                pixels[j + 2] = rgba[i + 2];
+              }
+            } else {
+              pixels = new Uint8Array(rgba); // copy
+            }
+
+            // Build raw PNG data: filter byte + filtered scanline, per row
+            // We use adaptive filtering: try all 5 filters per scanline,
+            // pick the one with the minimum sum of absolute signed values
+            const rawSize = (stride + 1) * H;
+            const raw = new Uint8Array(rawSize);
+
+            // Pre-allocate filter buffers (reused per scanline)
+            const fBufs = [
+              new Int32Array(stride), // filter 0: None
+              new Int32Array(stride), // filter 1: Sub
+              new Int32Array(stride), // filter 2: Up
+              new Int32Array(stride), // filter 3: Average
+              new Int32Array(stride), // filter 4: Paeth
+            ];
+
+            for (let y = 0; y < H; y++) {
+              const rowOffset = y * stride;
+              const upRowOffset = rowOffset - stride;
+              const rawRowStart = y * (stride + 1);
+
+              // Compute all 5 filters for this scanline, track score
+              const scores = [0, 0, 0, 0, 0];
+
+              for (let x = 0; x < stride; x++) {
+                const cur = pixels[rowOffset + x];
+                const left = (x >= bpp) ? pixels[rowOffset + x - bpp] : 0;
+                const up = (y > 0) ? pixels[upRowOffset + x] : 0;
+                const upLeft = (x >= bpp && y > 0) ? pixels[upRowOffset + x - bpp] : 0;
+
+                // Filter 0: None
+                const v0 = cur;
+                fBufs[0][x] = v0;
+                scores[0] += Math.abs(v0 > 127 ? v0 - 256 : v0);
+
+                // Filter 1: Sub
+                const v1 = (cur - left) & 0xFF;
+                fBufs[1][x] = v1;
+                scores[1] += Math.abs(v1 > 127 ? v1 - 256 : v1);
+
+                // Filter 2: Up
+                const v2 = (cur - up) & 0xFF;
+                fBufs[2][x] = v2;
+                scores[2] += Math.abs(v2 > 127 ? v2 - 256 : v2);
+
+                // Filter 3: Average
+                const v3 = (cur - ((left + up) >> 1)) & 0xFF;
+                fBufs[3][x] = v3;
+                scores[3] += Math.abs(v3 > 127 ? v3 - 256 : v3);
+
+                // Filter 4: Paeth
+                const p = left + up - upLeft;
+                const pa = Math.abs(p - left);
+                const pb = Math.abs(p - up);
+                const pc = Math.abs(p - upLeft);
+                let pred;
+                if (pa <= pb && pa <= pc) pred = left;
+                else if (pb <= pc) pred = up;
+                else pred = upLeft;
+                const v4 = (cur - pred) & 0xFF;
+                fBufs[4][x] = v4;
+                scores[4] += Math.abs(v4 > 127 ? v4 - 256 : v4);
+              }
+
+              // Pick best filter (lowest score)
+              let bestF = 0;
+              let bestScore = scores[0];
+              for (let f = 1; f < 5; f++) {
+                if (scores[f] < bestScore) { bestScore = scores[f]; bestF = f; }
+              }
+
+              raw[rawRowStart] = bestF;
+              const fBuf = fBufs[bestF];
+              for (let x = 0; x < stride; x++) {
+                raw[rawRowStart + 1 + x] = fBuf[x];
+              }
+            }
+
+            // Compress with pako zlib level 9
+            const compressed = pako.deflate(raw, { level: 9 });
+
+            // Build PNG file
+            const sig = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+            const ihdr = new Uint8Array(13);
+            const dv = new DataView(ihdr.buffer);
+            dv.setUint32(0, W);
+            dv.setUint32(4, H);
+            ihdr[8] = 8;          // bit depth
+            ihdr[9] = colorType;  // 2=RGB, 6=RGBA
+            ihdr[10] = 0;         // compression
+            ihdr[11] = 0;         // filter
+            ihdr[12] = 0;         // interlace
+
+            const ihdrChunk = makeChunk('IHDR', ihdr);
+            const idatChunk = makeChunk('IDAT', compressed);
+            const iendChunk = makeChunk('IEND', new Uint8Array(0));
+
+            const totalLen = sig.length + ihdrChunk.length + idatChunk.length + iendChunk.length;
+            const png = new Uint8Array(totalLen);
+            let off = 0;
+            png.set(sig, off); off += sig.length;
+            png.set(ihdrChunk, off); off += ihdrChunk.length;
+            png.set(idatChunk, off); off += idatChunk.length;
+            png.set(iendChunk, off);
+
+            resolve(new Blob([png], { type: 'image/png' }));
+          } catch (err) {
+            reject(err);
+          }
+        });
+      }
+
+      function showLoading(text) {
+        loadingText.textContent = text;
+        loadingOverlay.classList.add('is-visible');
+      }
+      function hideLoading() {
+        loadingOverlay.classList.remove('is-visible');
+      }
+
+      function makeBlobUrl(blob) {
+        const url = URL.createObjectURL(blob);
+        currentBlobUrls.push(url);
+        return url;
+      }
+      function revokeBlobUrls() {
+        currentBlobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} });
+        currentBlobUrls = [];
+      }
+
+      /**
+       * Core: extend the top pixel row vertically to reach 2:1 target height.
+       * Async because PNG encoding is async (pako compression).
+       * Returns { ok, blob, blobUrl, ... }.
+       */
+      async function processImage(sourceCanvas) {
         const W = sourceCanvas.width;
         const H = sourceCanvas.height;
         const targetHeight = Math.floor(W / 2);
@@ -1197,36 +1475,42 @@
         if (targetHeight < H) {
           return { ok: false, reason: 'target_too_small', W: W, H: H, targetHeight: targetHeight };
         }
+
+        let outCanvas;
+        let addPixels = 0;
+
         if (targetHeight === H) {
-          return {
-            ok: true, alreadyRatio: true,
-            W: W, H: H, targetHeight: targetHeight,
-            dataUrl: sourceCanvas.toDataURL('image/png')
-          };
+          // Already 2:1 — encode the source canvas directly
+          outCanvas = sourceCanvas;
+        } else {
+          addPixels = targetHeight - H;
+          const topRow = sCtx.getImageData(0, 0, W, 1);
+
+          outCanvas = document.createElement('canvas');
+          outCanvas.width = W;
+          outCanvas.height = targetHeight;
+          const oCtx = outCanvas.getContext('2d');
+
+          // Replicate top row pixel-by-pixel to fill the added zone (no blur)
+          const addedImageData = oCtx.createImageData(W, addPixels);
+          const src = topRow.data;
+          const dst = addedImageData.data;
+          for (let y = 0; y < addPixels; y++) {
+            dst.set(src, y * W * 4);
+          }
+          oCtx.putImageData(addedImageData, 0, 0);
+          oCtx.drawImage(sourceCanvas, 0, addPixels);
         }
 
-        const addPixels = targetHeight - H;
-        const topRow = sCtx.getImageData(0, 0, W, 1);
-
-        const out = document.createElement('canvas');
-        out.width = W;
-        out.height = targetHeight;
-        const oCtx = out.getContext('2d');
-
-        // Replicate top row pixel-by-pixel to fill the added zone (no blur)
-        const addedImageData = oCtx.createImageData(W, addPixels);
-        const src = topRow.data;
-        const dst = addedImageData.data;
-        for (let y = 0; y < addPixels; y++) {
-          dst.set(src, y * W * 4);
-        }
-        oCtx.putImageData(addedImageData, 0, 0);
-        oCtx.drawImage(sourceCanvas, 0, addPixels);
+        // Encode with custom PNG encoder (RGB detection + Paeth + zlib 9)
+        const blob = await encodePNG(outCanvas);
+        const blobUrl = makeBlobUrl(blob);
 
         return {
-          ok: true, alreadyRatio: false,
+          ok: true,
+          alreadyRatio: targetHeight === H,
           W: W, H: H, targetHeight: targetHeight, addPixels: addPixels,
-          dataUrl: out.toDataURL('image/png')
+          blob: blob, blobUrl: blobUrl, outputSize: blob.size
         };
       }
 
@@ -1260,6 +1544,7 @@
       }
 
       function reset() {
+        revokeBlobUrls();
         clearStatus();
         setPanelStatus('');
         readout.classList.add('hidden');
@@ -1267,9 +1552,15 @@
         preview.classList.add('hidden');
         compareSection.classList.add('hidden');
         fileInput.value = '';
+        resultImg.src = '';
+        compareBefore.src = '';
+        compareAfter.src = '';
+        downloadBtn.removeAttribute('href');
       }
 
       async function handleFile(file) {
+        // Clean up previous blob URLs
+        revokeBlobUrls();
         clearStatus();
         readout.classList.add('hidden');
         actions.classList.add('hidden');
@@ -1286,13 +1577,6 @@
             'Type détecté : <code>' + (file.type || 'inconnu') + '</code>.');
           return;
         }
-        if (file.size > MAX_FILE_SIZE) {
-          setPanelStatus('');
-          setStatus('error',
-            '<strong>Fichier trop volumineux.</strong> Taille : ' + fmtBytes(file.size) +
-            '. Maximum : 50 Mo.');
-          return;
-        }
 
         setStatus('info', '<strong>Chargement de l\'image…</strong> Décodage en cours.');
 
@@ -1303,6 +1587,18 @@
           const W = sourceCanvas.width;
           const H = sourceCanvas.height;
           const targetHeight = Math.floor(W / 2);
+
+          // Check canvas dimensions against browser limits
+          const totalPixels = W * targetHeight;
+          if (totalPixels > MAX_CANVAS_PIXELS) {
+            setPanelStatus('');
+            setStatus('error',
+              '<strong>Image trop grande pour le navigateur.</strong> ' +
+              'L\'image résultante ferait ' + (totalPixels / 1e6).toFixed(1) + ' mégapixels. ' +
+              'Les navigateurs limitent les canvas à environ 100 mégapixels. ' +
+              'Essayez de réduire la largeur de votre image avant de l\'importer.');
+            return;
+          }
 
           // Case 1: target < current => error
           if (targetHeight < H) {
@@ -1319,53 +1615,54 @@
             return;
           }
 
-          // Case 2: already 2:1
-          if (targetHeight === H) {
-            setPanelStatus('Déjà au ratio');
-            const result = processImage(sourceCanvas);
-            setStatus('success',
-              '<strong>Votre image est déjà au ratio 2:1.</strong> ' +
-              'Dimensions : <code>' + W + ' × ' + H + ' px</code>. Aucune modification nécessaire.');
-            resultImg.src = result.dataUrl;
-            downloadBtn.href = result.dataUrl;
-            downloadBtn.setAttribute('download', 'panoraco-' + sanitizeFilename(file.name) + '.png');
-            previewDimensions.textContent = W + ' × ' + H + ' px';
-            preview.classList.remove('hidden');
-            actions.classList.remove('hidden');
-            renderReadout(W, H, targetHeight, 0, file.size, false);
-            return;
-          }
+          // Show loading overlay during encoding
+          showLoading('Encodage PNG lossless… Filtrage adaptatif + compression zlib niveau 9');
+          // Yield to browser so overlay paints before heavy work
+          await new Promise(r => setTimeout(r, 50));
 
-          // Case 3: target > current => process
-          const result = processImage(sourceCanvas);
+          // Process + encode
+          const result = await processImage(sourceCanvas);
+
+          hideLoading();
+
           if (!result.ok) {
             setPanelStatus('');
             setStatus('error', '<strong>Erreur inattendue.</strong>');
             return;
           }
 
-          setPanelStatus('Ajusté');
-          setStatus('success',
-            '<strong>Image ajustée au ratio 2:1.</strong> La ligne de pixels du haut a été ' +
-            'étendue verticalement de <code>+' + result.addPixels + ' px</code>. ' +
-            'Téléchargez le résultat en PNG lossless.');
+          // Use original file blob URL for comparison "before"
+          const beforeUrl = makeBlobUrl(file);
 
-          resultImg.src = result.dataUrl;
-          downloadBtn.href = result.dataUrl;
+          if (result.alreadyRatio) {
+            setPanelStatus('Déjà au ratio');
+            setStatus('success',
+              '<strong>Votre image est déjà au ratio 2:1.</strong> ' +
+              'Dimensions : <code>' + W + ' × ' + H + ' px</code>. Aucune modification nécessaire.');
+          } else {
+            setPanelStatus('Ajusté');
+            setStatus('success',
+              '<strong>Image ajustée au ratio 2:1.</strong> La ligne de pixels du haut a été ' +
+              'étendue verticalement de <code>+' + result.addPixels + ' px</code>. ' +
+              'Export PNG lossless (' + fmtBytes(result.outputSize) + ').');
+          }
+
+          resultImg.src = result.blobUrl;
+          downloadBtn.href = result.blobUrl;
           downloadBtn.setAttribute('download', 'panoraco-' + sanitizeFilename(file.name) + '.png');
-          previewDimensions.textContent = W + ' × ' + targetHeight + ' px';
+          previewDimensions.textContent = W + ' × ' + result.targetHeight + ' px';
           preview.classList.remove('hidden');
           actions.classList.remove('hidden');
 
-          // Comparison
-          const beforeUrl = sourceCanvas.toDataURL('image/png');
+          // Comparison: before (original file) = left, after (result) = right
           compareBefore.src = beforeUrl;
-          compareAfter.src = result.dataUrl;
+          compareAfter.src = result.blobUrl;
           compareSection.classList.remove('hidden');
           initComparison();
 
-          renderReadout(W, H, targetHeight, result.addPixels, file.size, false);
+          renderReadout(W, H, result.targetHeight, result.addPixels, file.size, false);
         } catch (err) {
+          hideLoading();
           console.error(err);
           setPanelStatus('');
           setStatus('error',
@@ -1374,8 +1671,10 @@
         }
       }
 
-      // ---------- Comparison slider (interruptible, GPU-only) ----------
-      // Uses pointer events (works for mouse + touch + pen, captures properly)
+      // ---------- Comparison slider (interruptible, GPU-friendly clip-path) ----------
+      // Structure: AFTER image is base (sets height), BEFORE image is overlay
+      // (bottom-aligned, clipped via clip-path to show only left portion).
+      // Left = Original, Right = 2:1.
       function initComparison() {
         let dragging = false;
 
@@ -1383,15 +1682,14 @@
           const rect = compare.getBoundingClientRect();
           let pct = ((clientX - rect.left) / rect.width) * 100;
           pct = Math.max(0, Math.min(100, pct));
-          // Direct style updates — no CSS var cascade (per Emil cookbook)
-          compareAfterWrap.style.width = pct + '%';
+          // Clip the overlay (before image) to show left pct%
+          // inset(top right bottom left) — right = 100-pct hides the right portion
+          compareBefore.style.clipPath = 'inset(0 ' + (100 - pct) + '% 0 0)';
           compareHandle.style.left = pct + '%';
         };
 
         const onDown = (e) => {
           dragging = true;
-          // Capture pointer so we keep receiving move events even if cursor
-          // leaves the element bounds
           if (compare.setPointerCapture && e.pointerId !== undefined) {
             try { compare.setPointerCapture(e.pointerId); } catch (_) {}
           }
@@ -1416,11 +1714,10 @@
         compare.addEventListener('pointermove', onMove);
         compare.addEventListener('pointerup', onUp);
         compare.addEventListener('pointercancel', onUp);
-        // Prevent native image drag on the inner imgs
         compare.addEventListener('dragstart', (e) => e.preventDefault());
 
-        // Initial position
-        compareAfterWrap.style.width = '50%';
+        // Initial position: 50%
+        compareBefore.style.clipPath = 'inset(0 50% 0 0)';
         compareHandle.style.left = '50%';
       }
 
