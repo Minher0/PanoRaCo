@@ -1313,10 +1313,13 @@
 
       /**
        * Build the XMP packet string with GPano 360° metadata.
+       * Matches exactly what a Ricoh Theta / Insta360 camera produces.
+       * Minimal set: only the properties required for full-sphere detection.
+       * No InitialView* or PoseHeadingDegrees — these can confuse some
+       * viewers into showing a flat/cylindrical view instead of the
+       * interactive spherical viewer.
        */
       function buildXMPacket(width, height) {
-        // The xpacket wrapper tells XMP parsers where the metadata begins/ends.
-        // The rdf:Description carries the GPano namespace properties.
         return '<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>\n' +
           '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="PanoRaCo">\n' +
           '  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n' +
@@ -1330,11 +1333,7 @@
           ' GPano:FullPanoHeightPixels="' + height + '"' +
           ' GPano:CroppedAreaLeftPixels="0"' +
           ' GPano:CroppedAreaTopPixels="0"' +
-          ' GPano:PoseHeadingDegrees="0"' +
-          ' GPano:InitialViewHeadingDegrees="0"' +
-          ' GPano:InitialViewPitchDegrees="0"' +
-          ' GPano:InitialViewRollDegrees="0"' +
-          ' GPano:InitialHorizontalFOVDegrees="75"\n' +
+          ' GPano:SourcePhotosCount="1"\n' +
           '    />\n' +
           '  </rdf:RDF>\n' +
           '</x:xmpmeta>\n' +
@@ -1379,22 +1378,139 @@
       }
 
       /**
-       * Inject an iTXt XMP chunk into a PNG right after the IHDR chunk.
+       * Build a PNG eXIf chunk containing EXIF data.
+       * The eXIf chunk (PNG extension) carries standard EXIF metadata,
+       * which some 360° viewers check in addition to XMP.
+       *
+       * EXIF structure:
+       * - Byte order marker: "II" (little-endian) or "MM" (big-endian)
+       * - TIFF magic number (42)
+       * - Offset to first IFD (8)
+       * - IFD0 (Image File Directory) with tags
+       *
+       * We set:
+       * - Orientation (0x0112) = 1 (normal, no rotation needed)
+       * - XResolution (0x011A) = 72 dpi
+       * - YResolution (0x011B) = 72 dpi
+       * - ResolutionUnit (0x0128) = 2 (inches)
+       * - Software (0x0131) = "PanoRaCo"
+       *
+       * For 360° detection, the key is that the EXIF is valid and parseable,
+       * so services that check EXIF first (before XMP) can read the image.
+       */
+      function buildEXIFChunk(width, height) {
+        // Use little-endian byte order ("II")
+        const encoder = new TextEncoder();
+        const software = encoder.encode('PanoRaCo');
+
+        // IFD0 entries (each 12 bytes: tag(2) + type(2) + count(4) + value-or-offset(4))
+        const numEntries = 5;
+        const ifdSize = 2 + numEntries * 12 + 4; // count + entries + next-IFD-offset
+
+        // Data layout after TIFF header (8 bytes) + IFD:
+        //   software string (software.length + 1 bytes, null-terminated)
+        //   XResolution rational (8 bytes)
+        //   YResolution rational (8 bytes)
+        const dataOffset = 8 + ifdSize;
+        const softwareOffset = dataOffset;
+        const rationalOffset = softwareOffset + software.length + 1;
+        const totalSize = rationalOffset + 16; // 2 rationals × 8 bytes
+
+        const buf = new ArrayBuffer(totalSize);
+        const dv = new DataView(buf);
+        const bytes = new Uint8Array(buf);
+
+        // TIFF header (little-endian)
+        dv.setUint8(0, 0x49); // 'I'
+        dv.setUint8(1, 0x49); // 'I'
+        dv.setUint16(2, 42, true); // TIFF magic
+        dv.setUint32(4, 8, true); // offset to IFD0
+
+        // IFD0
+        let off = 8;
+        dv.setUint16(off, numEntries, true); off += 2;
+
+        // Entry 1: Orientation (0x0112), SHORT (type 3), count 1, value 1
+        dv.setUint16(off, 0x0112, true); off += 2;
+        dv.setUint16(off, 3, true); off += 2;
+        dv.setUint32(off, 1, true); off += 4;
+        dv.setUint16(off, 1, true); off += 2; // value (1 = normal)
+        dv.setUint16(off, 0, true); off += 2;
+
+        // Entry 2: XResolution (0x011A), RATIONAL (type 5), count 1, offset
+        dv.setUint16(off, 0x011A, true); off += 2;
+        dv.setUint16(off, 5, true); off += 2;
+        dv.setUint32(off, 1, true); off += 4;
+        dv.setUint32(off, rationalOffset, true); off += 4;
+
+        // Entry 3: YResolution (0x011B), RATIONAL (type 5), count 1, offset
+        dv.setUint16(off, 0x011B, true); off += 2;
+        dv.setUint16(off, 5, true); off += 2;
+        dv.setUint32(off, 1, true); off += 4;
+        dv.setUint32(off, rationalOffset + 8, true); off += 4;
+
+        // Entry 4: ResolutionUnit (0x0128), SHORT (type 3), count 1, value 2 (inches)
+        dv.setUint16(off, 0x0128, true); off += 2;
+        dv.setUint16(off, 3, true); off += 2;
+        dv.setUint32(off, 1, true); off += 4;
+        dv.setUint16(off, 2, true); off += 2;
+        dv.setUint16(off, 0, true); off += 2;
+
+        // Entry 5: Software (0x0131), ASCII (type 2), count = software.length+1, offset
+        dv.setUint16(off, 0x0131, true); off += 2;
+        dv.setUint16(off, 2, true); off += 2;
+        dv.setUint32(off, software.length + 1, true); off += 4;
+        dv.setUint32(off, softwareOffset, true); off += 4;
+
+        // Next IFD offset = 0 (no more IFDs)
+        dv.setUint32(off, 0, true); off += 4;
+
+        // Data area: Software string (null-terminated)
+        bytes.set(software, softwareOffset);
+        bytes[softwareOffset + software.length] = 0;
+
+        // XResolution rational: 72/1
+        dv.setUint32(rationalOffset, 72, true);
+        dv.setUint32(rationalOffset + 4, 1, true);
+        // YResolution rational: 72/1
+        dv.setUint32(rationalOffset + 8, 72, true);
+        dv.setUint32(rationalOffset + 12, 1, true);
+
+        // Build eXIf chunk: length(4) + type(4) "eXIf" + data + crc(4)
+        const dataLen = bytes.length;
+        const chunk = new Uint8Array(12 + dataLen);
+        const cdv = new DataView(chunk.buffer);
+        cdv.setUint32(0, dataLen);
+        chunk[4] = 0x65; // 'e'
+        chunk[5] = 0x58; // 'X'
+        chunk[6] = 0x49; // 'I'
+        chunk[7] = 0x66; // 'f'
+        chunk.set(bytes, 8);
+        const crc = crc32(chunk.subarray(4, 8 + dataLen));
+        cdv.setUint32(8 + dataLen, crc);
+        return chunk;
+      }
+
+      /**
+       * Inject iTXt (XMP) and eXIf chunks into a PNG right after the IHDR chunk.
        * PNG structure: 8-byte signature + chunks (IHDR is always first).
        */
       function injectXMPIntoPNG(pngBytes, width, height) {
         const xmp = buildXMPacket(width, height);
         const itxt = buildITXtChunk(xmp);
+        const exif = buildEXIFChunk(width, height);
 
         // PNG signature = 8 bytes
         // IHDR chunk = 4(length) + 4(type) + 13(data) + 4(crc) = 25 bytes
-        // So insert after byte 8 + 25 = 33
+        // Insert after byte 8 + 25 = 33
         const insertPos = 8 + 25;
+        const totalInsert = itxt.length + exif.length;
 
-        const result = new Uint8Array(pngBytes.length + itxt.length);
+        const result = new Uint8Array(pngBytes.length + totalInsert);
         result.set(pngBytes.subarray(0, insertPos), 0);
-        result.set(itxt, insertPos);
-        result.set(pngBytes.subarray(insertPos), insertPos + itxt.length);
+        result.set(exif, insertPos);  // eXIf first
+        result.set(itxt, insertPos + exif.length);  // then iTXt (XMP)
+        result.set(pngBytes.subarray(insertPos), insertPos + totalInsert);
         return result;
       }
 
