@@ -2,477 +2,797 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Panorama Ratio Corrector — PanoRaCo</title>
-  <meta name="description" content="Ajustez la hauteur de vos photos panoramiques au ratio 2:1 en étendant la dernière ligne de pixels du haut." />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#0e1410" />
+  <title>PanoRaCo · Ratio Corrector</title>
+  <meta name="description" content="Ajustez vos panoramas au ratio 2:1 en étendant la dernière ligne de pixels du haut. Traitement local, export lossless." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
+    /* ============================================================
+       PanoRaCo · Design tokens
+       Forest palette + amber accent · Geist + Geist Mono
+       ============================================================ */
     :root {
-      --bg: #0b1020;
-      --bg-elev: #131a30;
-      --bg-elev-2: #1b2342;
-      --border: #2a3358;
-      --text: #e8ecff;
-      --text-muted: #97a0c8;
-      --accent: #6366f1;
-      --accent-hover: #818cf8;
-      --accent-soft: rgba(99, 102, 241, 0.15);
-      --success: #10b981;
-      --success-soft: rgba(16, 185, 129, 0.12);
+      /* surface */
+      --bg: #0e1410;
+      --bg-elev: #161e18;
+      --bg-elev-2: #1d2620;
+      --bg-elev-3: #243029;
+      --border: #2a342d;
+      --border-strong: #3a463e;
+      --border-soft: #1f2823;
+
+      /* text */
+      --text: #e8e5db;
+      --text-muted: #8a978d;
+      --text-soft: #5f6c63;
+
+      /* accent — amber */
+      --accent: #d97706;
+      --accent-hover: #f59e0b;
+      --accent-soft: rgba(217, 119, 6, 0.14);
+      --accent-border: rgba(217, 119, 6, 0.35);
+
+      /* status */
+      --success: #84cc16;
+      --success-soft: rgba(132, 204, 22, 0.12);
       --warning: #f59e0b;
       --warning-soft: rgba(245, 158, 11, 0.12);
-      --danger: #ef4444;
-      --danger-soft: rgba(239, 68, 68, 0.12);
-      --radius: 14px;
-      --radius-sm: 10px;
-      --shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
-      --mono: ui-monospace, "SF Mono", Menlo, Monaco, "Cascadia Mono", Consolas, monospace;
-      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --danger: #f87171;
+      --danger-soft: rgba(248, 113, 113, 0.10);
+
+      /* shape */
+      --r-lg: 14px;
+      --r-md: 10px;
+      --r-sm: 7px;
+      --r-pill: 999px;
+
+      /* typography */
+      --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+      /* motion */
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+      --spring: cubic-bezier(0.32, 1.55, 0.4, 1);
+
+      /* shadows */
+      --shadow-1:
+        0 1px 2px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.02);
+      --shadow-2:
+        0 4px 12px -2px rgba(0, 0, 0, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.03);
+      --shadow-amber:
+        0 0 0 1px var(--accent-border),
+        0 8px 24px -8px rgba(217, 119, 6, 0.45);
     }
 
-    * { box-sizing: border-box; }
-
-    html, body {
-      margin: 0;
-      padding: 0;
+    /* ============================================================
+       Reset & base
+       ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: var(--font-sans);
       background: var(--bg);
       color: var(--text);
-      font-family: var(--sans);
-      min-height: 100vh;
+      min-height: 100dvh;
+      font-size: 15px;
+      line-height: 1.55;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      font-feature-settings: 'cv11', 'ss01';
+      overflow-x: hidden;
     }
 
-    body {
+    /* Ambient background — fixed, no repaint on scroll */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
       background:
-        radial-gradient(1200px 600px at 80% -10%, rgba(99, 102, 241, 0.18), transparent 60%),
-        radial-gradient(900px 500px at -10% 110%, rgba(16, 185, 129, 0.10), transparent 60%),
+        radial-gradient(900px 500px at 85% -5%, rgba(217, 119, 6, 0.10), transparent 60%),
+        radial-gradient(700px 600px at -5% 110%, rgba(132, 204, 22, 0.06), transparent 60%),
         var(--bg);
-      background-attachment: fixed;
     }
 
+    /* Subtle film grain on top — pointer-events: none, no jank */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+      mix-blend-mode: overlay;
+    }
+
+    /* ============================================================
+       Layout
+       ============================================================ */
     .container {
-      max-width: 1100px;
+      max-width: 920px;
       margin: 0 auto;
-      padding: 48px 24px 80px;
+      padding: 0 24px;
     }
 
-    header {
-      text-align: center;
-      margin-bottom: 40px;
+    /* ============================================================
+       Header / Nav
+       ============================================================ */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(12px) saturate(1.4);
+      -webkit-backdrop-filter: blur(12px) saturate(1.4);
+      background: rgba(14, 20, 16, 0.7);
+      border-bottom: 1px solid var(--border-soft);
     }
-
-    .logo {
-      display: inline-flex;
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .brand {
+      display: flex;
       align-items: center;
       gap: 10px;
-      padding: 8px 16px;
-      background: var(--accent-soft);
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      border-radius: 999px;
-      font-size: 13px;
+      color: var(--text);
+      text-decoration: none;
       font-weight: 600;
-      color: var(--accent-hover);
-      margin-bottom: 24px;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+    }
+    .brand-mark {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+      display: grid;
+      place-items: center;
+      color: #1a1a1a;
+      font-weight: 800;
+      font-size: 13px;
+      font-family: var(--font-mono);
+      box-shadow: 0 2px 8px rgba(217, 119, 6, 0.35);
+    }
+    .brand-name { letter-spacing: -0.02em; }
+    .brand-name .accent { color: var(--accent-hover); }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.15s var(--ease-out);
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      padding: 8px 16px;
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border);
+      border-radius: var(--r-pill);
+      color: var(--text) !important;
+      font-size: 13px !important;
+      font-weight: 500;
+      transition:
+        background 0.15s var(--ease-out),
+        border-color 0.15s var(--ease-out),
+        color 0.15s var(--ease-out);
+    }
+    .nav-cta:hover {
+      background: var(--bg-elev-3);
+      border-color: var(--border-strong);
+    }
+    @media (max-width: 640px) {
+      .nav-links { gap: 16px; }
+      .nav-links a:not(.nav-cta) { display: none; }
     }
 
-    .logo-dot {
-      width: 8px;
-      height: 8px;
+    /* ============================================================
+       Hero
+       ============================================================ */
+    .hero {
+      padding: 80px 0 48px;
+      max-width: 720px;
+    }
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px 5px 8px;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-border);
+      border-radius: var(--r-pill);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--accent-hover);
+      letter-spacing: 0;
+      margin-bottom: 24px;
+    }
+    .hero-eyebrow-dot {
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: var(--accent-hover);
-      box-shadow: 0 0 12px var(--accent-hover);
+      box-shadow: 0 0 8px var(--accent-hover);
+      animation: pulse 2.4s var(--ease-in-out) infinite;
     }
-
-    h1 {
-      font-size: clamp(32px, 6vw, 52px);
-      line-height: 1.1;
-      margin: 0 0 16px;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      background: linear-gradient(180deg, #ffffff 0%, #b8c0e8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.85); }
     }
-
-    .subtitle {
-      font-size: clamp(15px, 2vw, 18px);
+    .hero h1 {
+      font-size: clamp(36px, 6vw, 52px);
+      line-height: 1.05;
+      letter-spacing: -0.035em;
+      font-weight: 700;
+      margin: 0 0 20px;
+      color: var(--text);
+    }
+    .hero h1 .amber {
+      color: var(--accent-hover);
+      font-style: italic;
+      font-weight: 600;
+    }
+    .hero p {
+      font-size: 17px;
+      line-height: 1.55;
       color: var(--text-muted);
-      max-width: 620px;
-      margin: 0 auto;
-      line-height: 1.6;
+      max-width: 540px;
+      margin: 0 0 36px;
+    }
+    .hero-meta {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: var(--text-soft);
+      font-family: var(--font-mono);
+    }
+    .hero-meta-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hero-meta-item svg {
+      width: 14px;
+      height: 14px;
+      color: var(--accent-hover);
     }
 
-    .card {
+    /* ============================================================
+       Main panel
+       ============================================================ */
+    .panel {
       background: var(--bg-elev);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 28px;
-      box-shadow: var(--shadow);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-2);
     }
-
-    /* Upload zone */
-    .upload-zone {
-      position: relative;
-      border: 2px dashed var(--border);
-      border-radius: var(--radius);
-      padding: 56px 32px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border-soft);
       background: var(--bg-elev-2);
     }
-
-    .upload-zone:hover,
-    .upload-zone.dragover {
-      border-color: var(--accent);
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: -0.005em;
+    }
+    .panel-step {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
       background: var(--accent-soft);
-      transform: translateY(-1px);
+      color: var(--accent-hover);
+      display: grid;
+      place-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--accent-border);
+    }
+    .panel-body {
+      padding: 24px;
+    }
+    @media (max-width: 640px) {
+      .panel-body { padding: 18px; }
+      .panel-header { padding: 14px 18px; }
     }
 
-    .upload-zone input[type="file"] {
+    /* ============================================================
+       Upload zone
+       ============================================================ */
+    .dropzone {
+      position: relative;
+      border: 1.5px dashed var(--border-strong);
+      border-radius: var(--r-md);
+      padding: 64px 32px;
+      text-align: center;
+      cursor: pointer;
+      transition:
+        border-color 0.25s var(--ease-out),
+        background 0.25s var(--ease-out),
+        transform 0.25s var(--ease-out);
+      background:
+        radial-gradient(400px 200px at 50% 0%, rgba(217, 119, 6, 0.04), transparent 60%),
+        var(--bg-elev-2);
+      overflow: hidden;
+    }
+    .dropzone:hover {
+      border-color: var(--accent);
+      background:
+        radial-gradient(400px 200px at 50% 0%, rgba(217, 119, 6, 0.10), transparent 60%),
+        var(--bg-elev-2);
+    }
+    .dropzone.is-dragover {
+      border-color: var(--accent-hover);
+      border-style: solid;
+      background:
+        radial-gradient(400px 240px at 50% 0%, rgba(217, 119, 6, 0.18), transparent 60%),
+        var(--bg-elev-2);
+      transform: scale(1.005);
+    }
+    .dropzone input[type="file"] {
       position: absolute;
       inset: 0;
       opacity: 0;
       cursor: pointer;
     }
-
-    .upload-icon {
-      font-size: 40px;
-      margin-bottom: 12px;
-      display: block;
-    }
-
-    .upload-title {
-      font-size: 18px;
-      font-weight: 600;
-      margin: 0 0 6px;
-    }
-
-    .upload-hint {
-      font-size: 14px;
-      color: var(--text-muted);
-      margin: 0;
-    }
-
-    .upload-formats {
-      margin-top: 14px;
-      font-size: 12px;
-      color: var(--text-muted);
-      font-family: var(--mono);
-    }
-
-    /* Status / messages */
-    .message {
-      padding: 14px 18px;
-      border-radius: var(--radius-sm);
-      margin-top: 20px;
-      font-size: 14px;
-      line-height: 1.5;
-      display: flex;
-      gap: 10px;
-      align-items: flex-start;
-    }
-
-    .message.info {
-      background: var(--accent-soft);
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      color: var(--accent-hover);
-    }
-
-    .message.success {
-      background: var(--success-soft);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #34d399;
-    }
-
-    .message.warning {
-      background: var(--warning-soft);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      color: #fbbf24;
-    }
-
-    .message.error {
-      background: var(--danger-soft);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      color: #f87171;
-    }
-
-    .message-icon {
-      font-size: 16px;
-      line-height: 1.4;
-      flex-shrink: 0;
-    }
-
-    .message strong {
-      font-weight: 700;
-    }
-
-    .message code {
-      font-family: var(--mono);
-      background: rgba(255, 255, 255, 0.08);
-      padding: 1px 6px;
-      border-radius: 4px;
-      font-size: 13px;
-    }
-
-    /* Info grid */
-    .info-grid {
+    .dropzone-icon {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 18px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 14px;
-      margin-top: 20px;
-    }
-
-    .info-tile {
-      background: var(--bg-elev-2);
+      place-items: center;
+      border-radius: 14px;
+      background: var(--bg-elev-3);
       border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 14px 16px;
+      color: var(--accent-hover);
+      transition: transform 0.3s var(--spring);
     }
-
-    .info-tile-label {
+    .dropzone:hover .dropzone-icon {
+      transform: translateY(-3px);
+    }
+    .dropzone-icon svg { width: 24px; height: 24px; }
+    .dropzone-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 0 0 6px;
+      letter-spacing: -0.01em;
+    }
+    .dropzone-subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin: 0 0 16px;
+    }
+    .dropzone-formats {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      background: var(--bg-elev-3);
+      border: 1px solid var(--border);
+      border-radius: var(--r-pill);
+      font-family: var(--font-mono);
       font-size: 11px;
       color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 6px;
-      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .dropzone-formats .sep {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--text-soft);
     }
 
-    .info-tile-value {
-      font-size: 18px;
-      font-weight: 700;
-      font-family: var(--mono);
+    /* ============================================================
+       Status messages
+       ============================================================ */
+    .status {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 14px 16px;
+      border-radius: var(--r-md);
+      margin-top: 18px;
+      font-size: 14px;
+      line-height: 1.5;
+      border: 1px solid transparent;
+      animation: statusEnter 0.4s var(--ease-out) both;
+    }
+    @keyframes statusEnter {
+      from { opacity: 0; transform: translateY(-6px); filter: blur(4px); }
+      to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+    }
+    .status-icon {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .status-body { flex: 1; min-width: 0; }
+    .status-body strong { font-weight: 600; }
+    .status-body code {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      padding: 1px 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 4px;
       color: var(--text);
     }
-
-    .info-tile-value.changed {
-      color: var(--success);
+    .status.info {
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+      color: #fbbf24;
+    }
+    .status.success {
+      background: var(--success-soft);
+      border-color: rgba(132, 204, 22, 0.3);
+      color: #bef264;
+    }
+    .status.warning {
+      background: var(--warning-soft);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: #fcd34d;
+    }
+    .status.error {
+      background: var(--danger-soft);
+      border-color: rgba(248, 113, 113, 0.28);
+      color: #fca5a5;
     }
 
-    /* Preview */
-    .preview-section {
-      margin-top: 28px;
+    /* ============================================================
+       Dimensions readout
+       ============================================================ */
+    .readout {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1px;
+      background: var(--border-soft);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--r-md);
+      overflow: hidden;
+      margin-top: 18px;
     }
-
-    .preview-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 14px;
-      flex-wrap: wrap;
-      gap: 12px;
+    @media (max-width: 480px) {
+      .readout { grid-template-columns: repeat(2, 1fr); }
     }
-
-    .preview-title {
-      font-size: 16px;
+    .readout-cell {
+      background: var(--bg-elev-2);
+      padding: 14px 16px;
+      transition: background 0.2s var(--ease-out);
+    }
+    .readout-cell:hover { background: var(--bg-elev-3); }
+    .readout-label {
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-soft);
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    .readout-value {
+      font-family: var(--font-mono);
+      font-size: 20px;
       font-weight: 600;
-      margin: 0;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      line-height: 1;
+    }
+    .readout-value.is-changed {
+      color: var(--accent-hover);
+    }
+    .readout-value .unit {
+      font-size: 12px;
+      color: var(--text-soft);
+      font-weight: 400;
+      margin-left: 3px;
+    }
+    .readout-value .delta {
+      display: inline-block;
+      font-size: 12px;
+      color: var(--success);
+      margin-left: 4px;
+      vertical-align: 3px;
     }
 
-    .preview-wrapper {
-      background:
-        repeating-conic-gradient(#1b2342 0% 25%, #131a30 0% 50%) 50% / 20px 20px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 16px;
-      overflow: auto;
-      max-height: 70vh;
-      text-align: center;
+    /* ============================================================
+       Action row
+       ============================================================ */
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 20px;
     }
-
-    .preview-wrapper img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 6px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    }
-
-    /* Button */
     .btn {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 12px 22px;
-      background: var(--accent);
-      color: white;
+      padding: 11px 18px;
       border: none;
-      border-radius: var(--radius-sm);
+      border-radius: var(--r-sm);
+      font-family: var(--font-sans);
       font-size: 14px;
-      font-weight: 600;
-      font-family: inherit;
+      font-weight: 500;
       cursor: pointer;
-      transition: all 0.15s ease;
       text-decoration: none;
+      transition:
+        transform 0.15s var(--ease-out),
+        background 0.15s var(--ease-out),
+        border-color 0.15s var(--ease-out),
+        box-shadow 0.2s var(--ease-out);
+      letter-spacing: -0.005em;
     }
-
-    .btn:hover:not(:disabled) {
+    .btn:active { transform: scale(0.97); }
+    .btn svg { width: 16px; height: 16px; }
+    .btn-primary {
+      background: var(--accent);
+      color: #1a1208;
+      font-weight: 600;
+      box-shadow: var(--shadow-amber);
+    }
+    .btn-primary:hover {
       background: var(--accent-hover);
+      box-shadow:
+        0 0 0 1px var(--accent-border),
+        0 12px 32px -8px rgba(245, 158, 11, 0.55);
       transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
     }
-
-    .btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
     .btn-secondary {
       background: var(--bg-elev-2);
-      border: 1px solid var(--border);
       color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      background: var(--bg-elev-3);
+      border-color: var(--border-strong);
+    }
+    .btn[disabled] {
+      opacity: 0.4;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .btn-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(26, 18, 8, 0.25);
+      border-top-color: #1a1208;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ============================================================
+       Preview / Result
+       ============================================================ */
+    .preview {
+      margin-top: 20px;
+      border: 1px solid var(--border-soft);
+      border-radius: var(--r-md);
+      overflow: hidden;
+      background:
+        repeating-conic-gradient(var(--bg-elev-2) 0% 25%, var(--bg-elev) 0% 50%) 50% / 18px 18px;
+    }
+    .preview-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--bg-elev-2);
+      border-bottom: 1px solid var(--border-soft);
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+    .preview-bar-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 8px;
+      background: var(--success-soft);
+      color: var(--success);
+      border-radius: var(--r-pill);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+    .preview-bar-tag::before {
+      content: '';
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .preview-img-wrap {
+      max-height: 65vh;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      padding: 16px;
+    }
+    .preview-img-wrap img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
     }
 
-    .btn-secondary:hover:not(:disabled) {
-      background: var(--border);
-    }
-
-    /* Comparison slider */
-    .comparison {
-      margin-top: 24px;
+    /* ============================================================
+       Comparison slider
+       ============================================================ */
+    .compare {
       position: relative;
       user-select: none;
-      max-width: 100%;
       overflow: hidden;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
+      border-radius: var(--r-md);
+      border: 1px solid var(--border-soft);
+      background: var(--bg-elev-2);
+      margin-top: 12px;
     }
-
-    .comparison img {
+    .compare-img {
       display: block;
       width: 100%;
       height: auto;
       pointer-events: none;
+      -webkit-user-drag: none;
     }
-
-    .comparison-after {
+    .compare-after-wrap {
       position: absolute;
       top: 0;
       left: 0;
       height: 100%;
       width: 50%;
       overflow: hidden;
-      border-right: 2px solid white;
+      will-change: width;
     }
-
-    .comparison-after img {
+    .compare-after-wrap .compare-img {
       width: auto;
-      min-width: 100%;
-      max-width: none;
       height: 100%;
+      max-width: none;
+      min-width: 100%;
       object-fit: cover;
       object-position: left center;
     }
-
-    .comparison-handle {
+    .compare-handle {
       position: absolute;
       top: 0;
       left: 50%;
-      width: 4px;
+      width: 2px;
       height: 100%;
-      background: white;
+      background: var(--accent-hover);
       transform: translateX(-50%);
       pointer-events: none;
+      will-change: left;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.5);
     }
-
-    .comparison-handle::after {
-      content: '⇔';
+    .compare-handle::after {
+      content: '';
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: white;
-      color: #0b1020;
       width: 36px;
       height: 36px;
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      font-weight: 700;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      background: var(--accent-hover);
+      box-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
     }
-
-    .comparison-label {
+    .compare-handle::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 12px;
+      height: 12px;
+      border-left: 2px solid #1a1208;
+      border-right: 2px solid #1a1208;
+      z-index: 1;
+    }
+    .compare-label {
       position: absolute;
       top: 12px;
       padding: 4px 10px;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      font-size: 11px;
-      font-weight: 600;
-      border-radius: 4px;
-      letter-spacing: 0.04em;
+      background: rgba(14, 20, 16, 0.85);
+      backdrop-filter: blur(6px);
+      color: var(--text);
+      font-size: 10.5px;
+      font-weight: 500;
+      font-family: var(--font-mono);
+      border-radius: var(--r-pill);
+      letter-spacing: 0.05em;
       text-transform: uppercase;
+      border: 1px solid var(--border-soft);
     }
+    .compare-label-before { left: 12px; }
+    .compare-label-after { right: 12px; color: var(--accent-hover); }
 
-    .comparison-label.before { left: 12px; }
-    .comparison-label.after { right: 12px; }
-
-    /* Loader */
-    .loader {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top-color: white;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+    /* ============================================================
+       Process section (How it works)
+       ============================================================ */
+    .process {
+      padding: 96px 0 80px;
     }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    .process-head {
+      max-width: 580px;
+      margin-bottom: 48px;
     }
-
-    /* How it works */
-    .how-it-works {
-      margin-top: 56px;
-    }
-
-    .how-it-works h2 {
-      font-size: 22px;
+    .process-head h2 {
+      font-size: clamp(28px, 4vw, 36px);
+      line-height: 1.1;
+      letter-spacing: -0.03em;
       font-weight: 700;
-      margin: 0 0 20px;
-      text-align: center;
+      margin: 0 0 12px;
     }
-
+    .process-head p {
+      font-size: 15px;
+      color: var(--text-muted);
+      margin: 0;
+    }
     .steps {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
+      gap: 1px;
+      background: var(--border-soft);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--r-lg);
+      overflow: hidden;
     }
-
     .step {
       background: var(--bg-elev);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 20px;
+      padding: 28px 24px;
+      transition: background 0.2s var(--ease-out);
     }
-
+    .step:hover { background: var(--bg-elev-2); }
     .step-num {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      background: var(--accent-soft);
+      font-family: var(--font-mono);
+      font-size: 12px;
       color: var(--accent-hover);
-      border-radius: 50%;
-      font-weight: 700;
-      font-size: 13px;
-      margin-bottom: 10px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      letter-spacing: 0.04em;
     }
-
+    .step-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: var(--bg-elev-3);
+      border: 1px solid var(--border);
+      display: grid;
+      place-items: center;
+      color: var(--accent-hover);
+      margin-bottom: 16px;
+    }
+    .step-icon svg { width: 18px; height: 18px; }
     .step h3 {
       font-size: 15px;
       font-weight: 600;
       margin: 0 0 6px;
+      letter-spacing: -0.01em;
     }
-
     .step p {
       font-size: 13px;
       color: var(--text-muted);
@@ -480,185 +800,381 @@
       line-height: 1.5;
     }
 
+    /* ============================================================
+       Footer
+       ============================================================ */
     footer {
-      text-align: center;
+      border-top: 1px solid var(--border-soft);
+      padding: 32px 0 48px;
       margin-top: 64px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border);
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
       font-size: 13px;
+      color: var(--text-soft);
+    }
+    .footer-inner a {
       color: var(--text-muted);
-    }
-
-    footer a {
-      color: var(--accent-hover);
       text-decoration: none;
+      transition: color 0.15s var(--ease-out);
+    }
+    .footer-inner a:hover { color: var(--text); }
+    .footer-inner .mono {
+      font-family: var(--font-mono);
+      font-size: 12px;
     }
 
-    footer a:hover {
-      text-decoration: underline;
-    }
-
+    /* ============================================================
+       Visibility / animations
+       ============================================================ */
     .hidden { display: none !important; }
 
+    /* Enter animation for panels — fade + translateY + blur (Jakub style) */
+    .reveal {
+      opacity: 0;
+      transform: translateY(8px);
+      filter: blur(4px);
+      transition:
+        opacity 0.5s var(--ease-out),
+        transform 0.5s var(--ease-out),
+        filter 0.5s var(--ease-out);
+    }
+    .reveal.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+
+    /* Stagger children — used by readout cells and steps */
+    .stagger > * {
+      opacity: 0;
+      transform: translateY(6px);
+      transition:
+        opacity 0.4s var(--ease-out),
+        transform 0.4s var(--ease-out);
+    }
+    .stagger.is-visible > * {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .stagger.is-visible > *:nth-child(1) { transition-delay: 0ms; }
+    .stagger.is-visible > *:nth-child(2) { transition-delay: 50ms; }
+    .stagger.is-visible > *:nth-child(3) { transition-delay: 100ms; }
+    .stagger.is-visible > *:nth-child(4) { transition-delay: 150ms; }
+    .stagger.is-visible > *:nth-child(5) { transition-delay: 200ms; }
+    .stagger.is-visible > *:nth-child(6) { transition-delay: 250ms; }
+    .stagger.is-visible > *:nth-child(7) { transition-delay: 300ms; }
+    .stagger.is-visible > *:nth-child(8) { transition-delay: 350ms; }
+
+    /* ============================================================
+       Accessibility — reduced motion
+       ============================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+      .reveal, .stagger > * {
+        opacity: 1 !important;
+        transform: none !important;
+        filter: none !important;
+      }
+      .hero-eyebrow-dot { animation: none; }
+    }
+
+    /* ============================================================
+       Mobile adjustments
+       ============================================================ */
     @media (max-width: 640px) {
-      .container { padding: 32px 16px 60px; }
-      .card { padding: 20px; }
-      .upload-zone { padding: 40px 20px; }
+      .container { padding: 0 16px; }
+      .hero { padding: 48px 0 32px; }
+      .hero h1 { font-size: 32px; }
+      .hero p { font-size: 15px; }
+      .dropzone { padding: 44px 20px; }
+      .dropzone-icon { width: 48px; height: 48px; }
+      .process { padding: 64px 0; }
+      .steps { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="logo">
-        <span class="logo-dot"></span>
-        <span>PanoRaCo</span>
-      </div>
-      <h1>Panorama Ratio Corrector</h1>
-      <p class="subtitle">
-        Ajustez vos photos panoramiques au ratio 2:1 en étendant verticalement
-        la dernière ligne de pixels du haut. Téléchargement lossless, métadonnées préservées.
-      </p>
-    </header>
+  <!-- ============ NAV ============ -->
+  <header class="nav">
+    <div class="container nav-inner">
+      <a href="/" class="brand" aria-label="PanoRaCo accueil">
+        <span class="brand-mark">P</span>
+        <span class="brand-name">Pano<span class="accent">RaCo</span></span>
+      </a>
+      <nav class="nav-links" aria-label="Navigation principale">
+        <a href="#process">Comment ça marche</a>
+        <a href="#source">Code source</a>
+        <a href="#" class="nav-cta">Télécharger l'app</a>
+      </nav>
+    </div>
+  </header>
 
-    <main>
-      <section class="card">
-        <div class="upload-zone" id="uploadZone">
-          <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp" />
-          <span class="upload-icon">📁</span>
-          <p class="upload-title">Glissez votre photo ici ou cliquez pour parcourir</p>
-          <p class="upload-hint">Format panoramique recommandé (largeur &gt; 2 × hauteur)</p>
-          <p class="upload-formats">PNG · JPEG · WebP · BMP — jusqu'à 50 Mo</p>
+  <!-- ============ MAIN ============ -->
+  <main class="container">
+    <!-- HERO -->
+    <section class="hero">
+      <span class="hero-eyebrow">
+        <span class="hero-eyebrow-dot"></span>
+        Outil photo · ratio 2:1
+      </span>
+      <h1>
+        Donnez à vos panoramas<br>
+        un <span class="amber">ratio parfait</span>.
+      </h1>
+      <p>
+        PanoRaCo ajuste la hauteur de vos photos panoramiques au ratio 2:1
+        en étendant la dernière ligne de pixels du haut. Traitement 100%
+        local dans votre navigateur, export lossless, aucune donnée envoyée.
+      </p>
+      <div class="hero-meta">
+        <span class="hero-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Privé par design
+        </span>
+        <span class="hero-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          PNG lossless
+        </span>
+        <span class="hero-meta-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Instantané
+        </span>
+      </div>
+    </section>
+
+    <!-- WORK PANEL -->
+    <section class="panel reveal" id="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span class="panel-step">1</span>
+          <span>Sélectionnez une photo panoramique</span>
+        </div>
+        <span id="panel-status" class="hidden" style="font-size:12px;color:var(--text-muted);font-family:var(--font-mono);"></span>
+      </div>
+      <div class="panel-body">
+        <!-- Dropzone -->
+        <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Zone de dépôt de fichier">
+          <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/bmp" aria-label="Choisir une image" />
+          <div class="dropzone-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <p class="dropzone-title">Glissez votre photo ici</p>
+          <p class="dropzone-subtitle">ou cliquez pour parcourir vos fichiers</p>
+          <span class="dropzone-formats">
+            <span>PNG</span>
+            <span class="sep"></span>
+            <span>JPEG</span>
+            <span class="sep"></span>
+            <span>WebP</span>
+            <span class="sep"></span>
+            <span>BMP</span>
+            <span class="sep"></span>
+            <span>50 Mo max</span>
+          </span>
         </div>
 
+        <!-- Status -->
         <div id="statusArea"></div>
 
-        <div id="infoGrid" class="info-grid hidden"></div>
+        <!-- Dimensions readout -->
+        <div id="readout" class="readout stagger hidden"></div>
 
-        <div id="previewSection" class="preview-section hidden">
-          <div class="preview-header">
-            <h3 class="preview-title">Résultat — ratio 2:1</h3>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-              <button id="resetBtn" class="btn btn-secondary">↺ Nouvelle photo</button>
-              <a id="downloadBtn" class="btn" download>⬇ Télécharger (lossless)</a>
-            </div>
+        <!-- Actions -->
+        <div id="actions" class="actions hidden">
+          <button id="resetBtn" class="btn btn-secondary" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            Nouvelle photo
+          </button>
+          <a id="downloadBtn" class="btn btn-primary" download>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Télécharger le PNG
+          </a>
+        </div>
+
+        <!-- Result preview -->
+        <div id="preview" class="preview hidden">
+          <div class="preview-bar">
+            <span id="preview-dimensions">—</span>
+            <span class="preview-bar-tag">Ratio 2:1</span>
           </div>
-          <div class="preview-wrapper">
-            <img id="resultImage" alt="Résultat ajusté au ratio 2:1" />
+          <div class="preview-img-wrap">
+            <img id="resultImg" alt="Image ajustée au ratio 2:1" />
           </div>
         </div>
 
-        <div id="comparisonSection" class="hidden" style="margin-top: 24px;">
-          <div class="preview-header">
-            <h3 class="preview-title">Comparaison avant / après</h3>
-            <span style="font-size: 12px; color: var(--text-muted);">← Glissez pour comparer →</span>
+        <!-- Comparison slider -->
+        <div id="compareSection" class="hidden" style="margin-top:20px;">
+          <div class="preview-bar" style="border:1px solid var(--border-soft);border-radius:var(--r-md) var(--r-md) 0 0;border-bottom:none;">
+            <span style="font-family:var(--font-mono);font-size:12px;">Comparaison avant / après</span>
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-soft);">Glissez la poignée</span>
           </div>
-          <div class="comparison" id="comparison">
-            <img id="compareBefore" alt="Avant" />
-            <div class="comparison-after" id="compareAfterWrap">
-              <img id="compareAfter" alt="Après" />
+          <div class="compare" id="compare" style="border-radius:0 0 var(--r-md) var(--r-md);border-top:none;">
+            <img id="compareBefore" class="compare-img" alt="Image originale" />
+            <div class="compare-after-wrap" id="compareAfterWrap">
+              <img id="compareAfter" class="compare-img" alt="Image ajustée" />
             </div>
-            <div class="comparison-handle" id="compareHandle"></div>
-            <span class="comparison-label before">Original</span>
-            <span class="comparison-label after">2:1</span>
+            <div class="compare-handle" id="compareHandle" aria-hidden="true"></div>
+            <span class="compare-label compare-label-before">Original</span>
+            <span class="compare-label compare-label-after">2:1</span>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="how-it-works">
+    <!-- ============ HOW IT WORKS ============ -->
+    <section class="process" id="process">
+      <div class="process-head reveal">
         <h2>Comment ça marche</h2>
-        <div class="steps">
-          <div class="step">
-            <div class="step-num">1</div>
-            <h3>Upload</h3>
-            <p>Vous uploadez une photo panoramique. L'image est traitée entièrement dans votre navigateur, aucune donnée n'est envoyée à un serveur.</p>
+        <p>
+          PanoRaCo applique une règle simple : si votre image est plus large
+          que le ratio 2:1, on étend la ligne de pixels du haut pour
+          atteindre la hauteur cible. Cinq étapes, zéro upload.
+        </p>
+      </div>
+      <div class="steps stagger reveal" id="steps">
+        <div class="step">
+          <div class="step-num">01</div>
+          <div class="step-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
           </div>
-          <div class="step">
-            <div class="step-num">2</div>
-            <h3>Analyse du ratio</h3>
-            <p>On récupère la largeur et on la divise par 2 pour obtenir la hauteur cible d'un ratio 2:1 parfait.</p>
-          </div>
-          <div class="step">
-            <div class="step-num">3</div>
-            <h3>Vérification</h3>
-            <p>Si la hauteur cible est inférieure à la hauteur actuelle, l'application vous indique qu'elle n'est pas conçue pour ce type de modification.</p>
-          </div>
-          <div class="step">
-            <div class="step-num">4</div>
-            <h3>Extension vers le haut</h3>
-            <p>La dernière ligne de pixels en haut de l'image est étendue verticalement pour combler l'espace manquant jusqu'au ratio 2:1.</p>
-          </div>
-          <div class="step">
-            <div class="step-num">5</div>
-            <h3>Téléchargement lossless</h3>
-            <p>Le résultat est exporté en PNG sans perte, avec conservation de la qualité d'origine de l'image.</p>
-          </div>
+          <h3>Upload local</h3>
+          <p>Vous uploadez une photo panoramique. L'image reste dans votre navigateur, aucune donnée ne part vers un serveur.</p>
         </div>
-      </section>
-    </main>
+        <div class="step">
+          <div class="step-num">02</div>
+          <div class="step-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <h3>Analyse du ratio</h3>
+          <p>On récupère la largeur et on la divise par 2 pour calculer la hauteur cible d'un ratio 2:1 parfait.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">03</div>
+          <div class="step-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <h3>Vérification métier</h3>
+          <p>Si la hauteur cible est inférieure à la hauteur actuelle, PanoRaCo affiche un message clair : il ne sait pas recadrer.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">04</div>
+          <div class="step-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+          </div>
+          <h3>Extension du haut</h3>
+          <p>La dernière ligne de pixels en haut de l'image est répliquée verticalement, pixel par pixel, sans flou bilinéaire.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">05</div>
+          <div class="step-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+          <h3>Export lossless</h3>
+          <p>Le résultat est exporté en PNG sans perte. Téléchargement immédiat, comparaison visuelle incluse.</p>
+        </div>
+      </div>
+    </section>
+  </main>
 
-    <footer>
-      <p>
-        <strong>PanoRaCo</strong> — Traitement 100% local dans votre navigateur ·
-        <a href="https://github.com/Minher0/PanoRaCo" target="_blank" rel="noopener">Code source</a>
-      </p>
-    </footer>
-  </div>
+  <!-- ============ FOOTER ============ -->
+  <footer id="source">
+    <div class="container footer-inner">
+      <span class="mono">PanoRaCo · v1.0</span>
+      <span>
+        Traitement local ·
+        <a href="https://github.com/Minher0/PanoRaCo" target="_blank" rel="noopener">Code source GitHub</a>
+      </span>
+    </div>
+  </footer>
 
+  <!-- ============ SCRIPT ============ -->
   <script>
     (function () {
       'use strict';
 
-      // ============ DOM refs ============
-      const uploadZone = document.getElementById('uploadZone');
+      // ---------- DOM refs ----------
+      const dropzone = document.getElementById('dropzone');
       const fileInput = document.getElementById('fileInput');
       const statusArea = document.getElementById('statusArea');
-      const infoGrid = document.getElementById('infoGrid');
-      const previewSection = document.getElementById('previewSection');
-      const resultImage = document.getElementById('resultImage');
-      const downloadBtn = document.getElementById('downloadBtn');
+      const readout = document.getElementById('readout');
+      const actions = document.getElementById('actions');
       const resetBtn = document.getElementById('resetBtn');
-      const comparisonSection = document.getElementById('comparisonSection');
+      const downloadBtn = document.getElementById('downloadBtn');
+      const preview = document.getElementById('preview');
+      const resultImg = document.getElementById('resultImg');
+      const previewDimensions = document.getElementById('preview-dimensions');
+      const compareSection = document.getElementById('compareSection');
       const compareBefore = document.getElementById('compareBefore');
       const compareAfter = document.getElementById('compareAfter');
       const compareAfterWrap = document.getElementById('compareAfterWrap');
       const compareHandle = document.getElementById('compareHandle');
-      const comparison = document.getElementById('comparison');
+      const compare = document.getElementById('compare');
+      const panelStatus = document.getElementById('panel-status');
 
-      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 Mo
+      const MAX_FILE_SIZE = 50 * 1024 * 1024;
       const ACCEPTED = ['image/png', 'image/jpeg', 'image/webp', 'image/bmp'];
 
-      // ============ Helpers ============
-      function setStatus(type, html) {
-        const icons = { info: 'ℹ️', success: '✅', warning: '⚠️', error: '❌' };
-        statusArea.innerHTML =
-          '<div class="message ' + type + '">' +
-          '<span class="message-icon">' + (icons[type] || 'ℹ️') + '</span>' +
-          '<div>' + html + '</div>' +
-          '</div>';
-      }
-
-      function clearStatus() { statusArea.innerHTML = ''; }
-
+      // ---------- Utilities ----------
       function fmtBytes(b) {
         if (b < 1024) return b + ' o';
-        if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' Ko';
-        return (b / 1024 / 1024).toFixed(2) + ' Mo';
+        if (b < 1048576) return (b / 1024).toFixed(1) + ' Ko';
+        return (b / 1048576).toFixed(2) + ' Mo';
+      }
+
+      function sanitizeFilename(name) {
+        return name
+          .replace(/\.[^.]+$/, '')
+          .replace(/[^a-zA-Z0-9-_]/g, '_')
+          .substring(0, 40);
+      }
+
+      function svgIcon(name) {
+        const icons = {
+          info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+          success: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+          warning: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+          error: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'
+        };
+        return '<svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (icons[name] || icons.info) + '</svg>';
+      }
+
+      function setStatus(type, html) {
+        statusArea.innerHTML =
+          '<div class="status ' + type + '">' +
+          svgIcon(type) +
+          '<div class="status-body">' + html + '</div>' +
+          '</div>';
+      }
+      function clearStatus() { statusArea.innerHTML = ''; }
+      function setPanelStatus(text) {
+        if (!text) { panelStatus.classList.add('hidden'); panelStatus.textContent = ''; return; }
+        panelStatus.textContent = text;
+        panelStatus.classList.remove('hidden');
       }
 
       function loadImageFromFile(file) {
         return new Promise((resolve, reject) => {
           const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = () => reject(new Error("Impossible de charger l'image."));
-          img.src = URL.createObjectURL(file);
+          const url = URL.createObjectURL(file);
+          img.onload = () => { resolve(img); };
+          img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Image illisible.")); };
+          img.src = url;
         });
       }
 
-      /**
-       * Convertit n'importe quelle image source en canvas.
-       * Pour préserver un max de qualité, on ne ré-échantillonne pas.
-       */
       function imageToCanvas(img) {
         const c = document.createElement('canvas');
         c.width = img.naturalWidth;
@@ -669,151 +1185,116 @@
       }
 
       /**
-       * Core: étend la dernière ligne de pixels du haut vers le haut
-       * pour atteindre la nouvelle hauteur cible.
-       *
-       * Règle métier :
-       *  - targetHeight = floor(width / 2)
-       *  - si targetHeight < currentHeight => erreur "pas conçu pour ça"
-       *  - sinon => étendre top row verticalement
+       * Core: extend the top pixel row vertically to reach 2:1 target height.
+       * Returns { ok, ... } — caller decides what to show.
        */
       function processImage(sourceCanvas) {
         const W = sourceCanvas.width;
         const H = sourceCanvas.height;
         const targetHeight = Math.floor(W / 2);
-
         const sCtx = sourceCanvas.getContext('2d', { willReadFrequently: true });
 
-        // Vérification de la règle métier
         if (targetHeight < H) {
-          return {
-            ok: false,
-            reason: 'target_too_small',
-            W: W, H: H, targetHeight: targetHeight
-          };
+          return { ok: false, reason: 'target_too_small', W: W, H: H, targetHeight: targetHeight };
         }
-
         if (targetHeight === H) {
-          // Déjà au ratio 2:1
           return {
-            ok: true,
-            alreadyRatio: true,
+            ok: true, alreadyRatio: true,
             W: W, H: H, targetHeight: targetHeight,
             dataUrl: sourceCanvas.toDataURL('image/png')
           };
         }
 
-        const addPixels = targetHeight - H; // pixels à ajouter EN HAUT
-
-        // Récupère la dernière ligne de pixels en haut (y = 0)
+        const addPixels = targetHeight - H;
         const topRow = sCtx.getImageData(0, 0, W, 1);
 
-        // Crée le canvas de sortie
         const out = document.createElement('canvas');
         out.width = W;
         out.height = targetHeight;
         const oCtx = out.getContext('2d');
 
-        // 1) Remplit toute la zone supérieure ajoutée avec la ligne du haut
-        //    (on dessine la ligne 1px en la stretchant sur addPixels px)
-        //    Pour éviter tout flou bilinéaire sur 1px -> on préfère
-        //    répliquer pixel par pixel via putImageData d'une colonne étendue,
-        //    mais putImageData ne stretch pas. Donc on construit une ImageData
-        //    de la zone ajoutée en répliquant chaque pixel de la ligne du haut.
+        // Replicate top row pixel-by-pixel to fill the added zone (no blur)
         const addedImageData = oCtx.createImageData(W, addPixels);
-        const src = topRow.data;           // Uint8ClampedArray length W*4
-        const dst = addedImageData.data;   // Uint8ClampedArray length W*addPixels*4
+        const src = topRow.data;
+        const dst = addedImageData.data;
         for (let y = 0; y < addPixels; y++) {
-          const dstRowStart = y * W * 4;
-          dst.set(src, dstRowStart);
+          dst.set(src, y * W * 4);
         }
         oCtx.putImageData(addedImageData, 0, 0);
-
-        // 2) Dessine l'image originale en dessous
         oCtx.drawImage(sourceCanvas, 0, addPixels);
 
         return {
-          ok: true,
-          alreadyRatio: false,
+          ok: true, alreadyRatio: false,
           W: W, H: H, targetHeight: targetHeight, addPixels: addPixels,
-          dataUrl: out.toDataURL('image/png'),
-          resultCanvas: out
+          dataUrl: out.toDataURL('image/png')
         };
       }
 
-      function showInfo(before, after, fileSize, addPixels) {
-        const ratioBefore = (before.w / before.h).toFixed(3);
-        const ratioAfter = (after.w / after.h).toFixed(2);
-        infoGrid.innerHTML = `
-          <div class="info-tile">
-            <div class="info-tile-label">Largeur</div>
-            <div class="info-tile-value">${before.w}<span style="color:var(--text-muted);font-size:13px;font-weight:400;"> px</span></div>
-          </div>
-          <div class="info-tile">
-            <div class="info-tile-label">Hauteur originale</div>
-            <div class="info-tile-value">${before.h}<span style="color:var(--text-muted);font-size:13px;font-weight:400;"> px</span></div>
-          </div>
-          <div class="info-tile">
-            <div class="info-tile-label">Hauteur cible (2:1)</div>
-            <div class="info-tile-value changed">${after.h}<span style="color:var(--success);font-size:13px;font-weight:400;"> px</span></div>
-          </div>
-          <div class="info-tile">
-            <div class="info-tile-label">Pixels ajoutés en haut</div>
-            <div class="info-tile-value changed">+${addPixels}<span style="color:var(--success);font-size:13px;font-weight:400;"> px</span></div>
-          </div>
-          <div class="info-tile">
-            <div class="info-tile-label">Ratio avant</div>
-            <div class="info-tile-value">${ratioBefore}<span style="color:var(--text-muted);font-size:13px;font-weight:400;">:1</span></div>
-          </div>
-          <div class="info-tile">
-            <div class="info-tile-label">Ratio après</div>
-            <div class="info-tile-value changed">${ratioAfter}<span style="color:var(--success);font-size:13px;font-weight:400;">:1</span></div>
-          </div>
-          <div class="info-tile">
-            <div class="info-tile-label">Taille du fichier</div>
-            <div class="info-tile-value" style="font-size:14px;">${fmtBytes(fileSize)}</div>
-          </div>
-          <div class="info-tile">
-            <div class="info-tile-label">Format export</div>
-            <div class="info-tile-value" style="font-size:14px;color:var(--success);">PNG lossless</div>
-          </div>
-        `;
-        infoGrid.classList.remove('hidden');
+      function renderReadout(W, H, targetHeight, addPixels, fileSize, isWarning) {
+        const ratioBefore = (W / H).toFixed(3);
+        const ratioAfter = (W / targetHeight).toFixed(2);
+        const cells = [
+          { label: 'Largeur', value: W, unit: 'px', changed: false },
+          { label: 'Hauteur originale', value: H, unit: 'px', changed: false },
+          { label: 'Hauteur cible', value: targetHeight, unit: 'px', changed: !isWarning && targetHeight !== H, delta: isWarning ? null : (targetHeight === H ? null : '+' + addPixels) },
+          { label: 'Pixels ajoutés', value: isWarning ? 0 : addPixels, unit: 'px', changed: !isWarning && addPixels > 0, delta: isWarning ? '−' + (H - targetHeight) : null },
+          { label: 'Ratio avant', value: ratioBefore, unit: ':1', changed: false },
+          { label: 'Ratio après', value: ratioAfter, unit: ':1', changed: !isWarning },
+          { label: 'Taille fichier', value: fmtBytes(fileSize), unit: '', changed: false, mono: false },
+          { label: 'Export', value: 'PNG', unit: 'lossless', changed: false }
+        ];
+
+        readout.innerHTML = cells.map(c => {
+          const cls = 'readout-value' + (c.changed ? ' is-changed' : '');
+          const valHtml = (typeof c.value === 'string' ? c.value : c.value.toLocaleString('fr-FR')) +
+                         (c.unit ? '<span class="unit">' + c.unit + '</span>' : '') +
+                         (c.delta ? '<span class="delta">' + c.delta + ' px</span>' : '');
+          return '<div class="readout-cell"><div class="readout-label">' + c.label + '</div><div class="' + cls + '">' + valHtml + '</div></div>';
+        }).join('');
+        readout.classList.remove('hidden');
+        // re-trigger stagger animation
+        readout.classList.remove('is-visible');
+        // Force reflow
+        void readout.offsetWidth;
+        requestAnimationFrame(() => readout.classList.add('is-visible'));
       }
 
       function reset() {
-        statusArea.innerHTML = '';
-        infoGrid.classList.add('hidden');
-        previewSection.classList.add('hidden');
-        comparisonSection.classList.add('hidden');
+        clearStatus();
+        setPanelStatus('');
+        readout.classList.add('hidden');
+        actions.classList.add('hidden');
+        preview.classList.add('hidden');
+        compareSection.classList.add('hidden');
         fileInput.value = '';
       }
 
       async function handleFile(file) {
         clearStatus();
-        infoGrid.classList.add('hidden');
-        previewSection.classList.add('hidden');
-        comparisonSection.classList.add('hidden');
+        readout.classList.add('hidden');
+        actions.classList.add('hidden');
+        preview.classList.add('hidden');
+        compareSection.classList.add('hidden');
+        setPanelStatus('Analyse…');
 
-        if (!file) return;
+        if (!file) { setPanelStatus(''); return; }
 
-        // Validation type
         if (!ACCEPTED.includes(file.type)) {
+          setPanelStatus('');
           setStatus('error',
             '<strong>Format non supporté.</strong> Formats acceptés : PNG, JPEG, WebP, BMP. ' +
             'Type détecté : <code>' + (file.type || 'inconnu') + '</code>.');
           return;
         }
-
-        // Validation taille
         if (file.size > MAX_FILE_SIZE) {
+          setPanelStatus('');
           setStatus('error',
             '<strong>Fichier trop volumineux.</strong> Taille : ' + fmtBytes(file.size) +
             '. Maximum : 50 Mo.');
           return;
         }
 
-        setStatus('info', '<strong>Analyse en cours…</strong> Chargement de l\'image.');
+        setStatus('info', '<strong>Chargement de l\'image…</strong> Décodage en cours.');
 
         try {
           const img = await loadImageFromFile(file);
@@ -823,153 +1304,177 @@
           const H = sourceCanvas.height;
           const targetHeight = Math.floor(W / 2);
 
-          // Cas 1 : target < current => erreur métier
+          // Case 1: target < current => error
           if (targetHeight < H) {
             const ratio = (W / H).toFixed(3);
+            setPanelStatus('Non applicable');
             setStatus('warning',
-              '<strong>Cette application n\'est pas conçue pour ce type de modification.</strong><br><br>' +
-              'Votre image fait <code>' + W + ' × ' + H + ' px</code> (ratio ' + ratio + ':1).<br>' +
+              '<strong>PanoRaCo n\'est pas conçu pour ce type de modification.</strong><br>' +
+              'Votre image fait <code>' + W + ' × ' + H + ' px</code> (ratio ' + ratio + ':1). ' +
               'La hauteur cible pour un ratio 2:1 serait <code>' + targetHeight + ' px</code>, ' +
-              'ce qui est <strong>inférieur</strong> à la hauteur actuelle (' + H + ' px).<br><br>' +
-              'PanoRaCo ne fait qu\'<em>ajouter</em> de la hauteur en étendant la ligne du haut — ' +
-              'il ne sait pas recadrer ni réduire une image. ' +
-              'Utilisez un outil de recadrage pour ce cas.');
-            showInfo(
-              { w: W, h: H },
-              { w: W, h: targetHeight },
-              file.size,
-              0
-            );
+              'ce qui est <strong>inférieur</strong> à la hauteur actuelle. ' +
+              'PanoRaCo ne sait qu\'ajouter de la hauteur en étendant la ligne du haut, ' +
+              'il ne sait pas recadrer ni réduire. Utilisez un outil de recadrage pour ce cas.');
+            renderReadout(W, H, targetHeight, H - targetHeight, file.size, true);
             return;
           }
 
-          // Cas 2 : target === current => déjà au ratio
+          // Case 2: already 2:1
           if (targetHeight === H) {
+            setPanelStatus('Déjà au ratio');
+            const result = processImage(sourceCanvas);
             setStatus('success',
               '<strong>Votre image est déjà au ratio 2:1.</strong> ' +
-              'Dimensions : <code>' + W + ' × ' + H + ' px</code>. ' +
-              'Aucune modification nécessaire.');
-            const result = processImage(sourceCanvas);
-            resultImage.src = result.dataUrl;
+              'Dimensions : <code>' + W + ' × ' + H + ' px</code>. Aucune modification nécessaire.');
+            resultImg.src = result.dataUrl;
             downloadBtn.href = result.dataUrl;
             downloadBtn.setAttribute('download', 'panoraco-' + sanitizeFilename(file.name) + '.png');
-            previewSection.classList.remove('hidden');
-            showInfo(
-              { w: W, h: H },
-              { w: W, h: targetHeight },
-              file.size,
-              0
-            );
+            previewDimensions.textContent = W + ' × ' + H + ' px';
+            preview.classList.remove('hidden');
+            actions.classList.remove('hidden');
+            renderReadout(W, H, targetHeight, 0, file.size, false);
             return;
           }
 
-          // Cas 3 : target > current => traitement normal
+          // Case 3: target > current => process
           const result = processImage(sourceCanvas);
           if (!result.ok) {
-            setStatus('error', '<strong>Erreur inattendue pendant le traitement.</strong>');
+            setPanelStatus('');
+            setStatus('error', '<strong>Erreur inattendue.</strong>');
             return;
           }
 
-          const addPixels = result.addPixels;
+          setPanelStatus('Ajusté');
           setStatus('success',
-            '<strong>Image ajustée au ratio 2:1.</strong> ' +
-            'La dernière ligne de pixels du haut a été étendue verticalement de <code>+' + addPixels +
-            ' px</code>. Téléchargez le résultat en PNG lossless.');
+            '<strong>Image ajustée au ratio 2:1.</strong> La ligne de pixels du haut a été ' +
+            'étendue verticalement de <code>+' + result.addPixels + ' px</code>. ' +
+            'Téléchargez le résultat en PNG lossless.');
 
-          // Affichage résultat
-          resultImage.src = result.dataUrl;
+          resultImg.src = result.dataUrl;
           downloadBtn.href = result.dataUrl;
           downloadBtn.setAttribute('download', 'panoraco-' + sanitizeFilename(file.name) + '.png');
-          previewSection.classList.remove('hidden');
+          previewDimensions.textContent = W + ' × ' + targetHeight + ' px';
+          preview.classList.remove('hidden');
+          actions.classList.remove('hidden');
 
-          // Comparaison avant/après
+          // Comparison
           const beforeUrl = sourceCanvas.toDataURL('image/png');
           compareBefore.src = beforeUrl;
           compareAfter.src = result.dataUrl;
-          comparisonSection.classList.remove('hidden');
+          compareSection.classList.remove('hidden');
           initComparison();
 
-          showInfo(
-            { w: W, h: H },
-            { w: W, h: targetHeight },
-            file.size,
-            addPixels
-          );
+          renderReadout(W, H, targetHeight, result.addPixels, file.size, false);
         } catch (err) {
           console.error(err);
+          setPanelStatus('');
           setStatus('error',
             '<strong>Erreur lors du traitement.</strong> ' +
             (err && err.message ? err.message : 'Erreur inconnue.'));
         }
       }
 
-      function sanitizeFilename(name) {
-        return name
-          .replace(/\.[^.]+$/, '')  // retire l'extension
-          .replace(/[^a-zA-Z0-9-_]/g, '_')
-          .substring(0, 40);
-      }
-
-      // ============ Comparison slider ============
+      // ---------- Comparison slider (interruptible, GPU-only) ----------
+      // Uses pointer events (works for mouse + touch + pen, captures properly)
       function initComparison() {
         let dragging = false;
+
         const setPos = (clientX) => {
-          const rect = comparison.getBoundingClientRect();
+          const rect = compare.getBoundingClientRect();
           let pct = ((clientX - rect.left) / rect.width) * 100;
           pct = Math.max(0, Math.min(100, pct));
+          // Direct style updates — no CSS var cascade (per Emil cookbook)
           compareAfterWrap.style.width = pct + '%';
           compareHandle.style.left = pct + '%';
         };
+
         const onDown = (e) => {
           dragging = true;
-          const x = e.touches ? e.touches[0].clientX : e.clientX;
-          setPos(x);
+          // Capture pointer so we keep receiving move events even if cursor
+          // leaves the element bounds
+          if (compare.setPointerCapture && e.pointerId !== undefined) {
+            try { compare.setPointerCapture(e.pointerId); } catch (_) {}
+          }
+          setPos(e.clientX);
+          e.preventDefault();
         };
+
         const onMove = (e) => {
           if (!dragging) return;
-          const x = e.touches ? e.touches[0].clientX : e.clientX;
-          setPos(x);
+          setPos(e.clientX);
         };
-        const onUp = () => { dragging = false; };
 
-        comparison.addEventListener('mousedown', onDown);
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
-        comparison.addEventListener('touchstart', onDown, { passive: true });
-        window.addEventListener('touchmove', onMove, { passive: true });
-        window.addEventListener('touchend', onUp);
+        const onUp = (e) => {
+          dragging = false;
+          if (compare.releasePointerCapture && e.pointerId !== undefined) {
+            try { compare.releasePointerCapture(e.pointerId); } catch (_) {}
+          }
+        };
 
-        // Init à 50%
+        // Use pointer events — unified mouse/touch/pen
+        compare.addEventListener('pointerdown', onDown);
+        compare.addEventListener('pointermove', onMove);
+        compare.addEventListener('pointerup', onUp);
+        compare.addEventListener('pointercancel', onUp);
+        // Prevent native image drag on the inner imgs
+        compare.addEventListener('dragstart', (e) => e.preventDefault());
+
+        // Initial position
         compareAfterWrap.style.width = '50%';
         compareHandle.style.left = '50%';
       }
 
-      // ============ Event listeners ============
+      // ---------- Reveal on scroll (IntersectionObserver, not window.scroll) ----------
+      function setupReveal() {
+        const els = document.querySelectorAll('.reveal');
+        if (!('IntersectionObserver' in window)) {
+          els.forEach(el => el.classList.add('is-visible'));
+          return;
+        }
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible');
+              io.unobserve(entry.target);
+            }
+          });
+        }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+        els.forEach(el => io.observe(el));
+      }
+
+      // ---------- Events ----------
       fileInput.addEventListener('change', (e) => {
         const f = e.target.files && e.target.files[0];
         if (f) handleFile(f);
       });
 
       ['dragenter', 'dragover'].forEach(ev => {
-        uploadZone.addEventListener(ev, (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          uploadZone.classList.add('dragover');
+        dropzone.addEventListener(ev, (e) => {
+          e.preventDefault(); e.stopPropagation();
+          dropzone.classList.add('is-dragover');
         });
       });
       ['dragleave', 'drop'].forEach(ev => {
-        uploadZone.addEventListener(ev, (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          uploadZone.classList.remove('dragover');
+        dropzone.addEventListener(ev, (e) => {
+          e.preventDefault(); e.stopPropagation();
+          dropzone.classList.remove('is-dragover');
         });
       });
-      uploadZone.addEventListener('drop', (e) => {
+      dropzone.addEventListener('drop', (e) => {
         const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
         if (f) handleFile(f);
       });
+      dropzone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          fileInput.click();
+        }
+      });
 
       resetBtn.addEventListener('click', reset);
+
+      // ---------- Init ----------
+      setupReveal();
     })();
   </script>
 </body>
