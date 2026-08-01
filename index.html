@@ -1013,7 +1013,7 @@
         </span>
         <span class="hero-meta-item">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-          PNG lossless
+          JPEG 360°
         </span>
         <span class="hero-meta-item">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -1071,7 +1071,7 @@
           </button>
           <a id="downloadBtn" class="btn btn-primary" download>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Télécharger le PNG
+            Télécharger le JPEG 360°
           </a>
         </div>
 
@@ -1269,6 +1269,62 @@
       }
 
       /**
+       * Encode a canvas to a JPEG Blob at quality 0.95 (visually lossless).
+       * JPEG is the standard format for 360° panoramas — most viewers
+       * (Facebook, Google Photos, YouTube) only detect XMP GPano metadata
+       * in JPEG APP1 segments, not in PNG iTXt chunks.
+       */
+      function canvasToJPEGBlob(canvas) {
+        return new Promise((resolve, reject) => {
+          canvas.toBlob((blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('Failed to encode JPEG'));
+          }, 'image/jpeg', 0.95);
+        });
+      }
+
+      /**
+       * Inject an XMP APP1 segment into a JPEG file right after the SOI marker.
+       * This is the exact same method ExifTool and the HuggingFace
+       * 360_metadata_image_injector use — proven to work with all
+       * 360° viewers.
+       *
+       * JPEG structure:
+       *   FF D8 (SOI marker)
+       *   [APP1 segment with XMP]  ← we insert here
+       *   ... rest of the original file
+       *
+       * APP1 XMP segment structure:
+       *   FF E1 (APP1 marker)
+       *   2 bytes: length (big-endian, includes itself but not the marker)
+       *   "http://ns.adobe.com/xap/1.0/\0" (29 bytes, null-terminated namespace)
+       *   XMP packet bytes
+       */
+      function injectXMPIntoJPEG(jpegBytes, xmpString) {
+        const encoder = new TextEncoder();
+        const xmpBytes = encoder.encode(xmpString);
+        const xmpHeader = encoder.encode('http://ns.adobe.com/xap/1.0/\x00');
+        const segmentDataLen = xmpHeader.length + xmpBytes.length;
+        const lengthValue = segmentDataLen + 2; // +2 for the length field itself
+
+        // Build APP1 segment: marker(2) + length(2) + header + xmp
+        const app1 = new Uint8Array(4 + segmentDataLen);
+        app1[0] = 0xFF;
+        app1[1] = 0xE1;
+        app1[2] = (lengthValue >> 8) & 0xFF;
+        app1[3] = lengthValue & 0xFF;
+        app1.set(xmpHeader, 4);
+        app1.set(xmpBytes, 4 + xmpHeader.length);
+
+        // Insert after SOI marker (first 2 bytes)
+        const result = new Uint8Array(jpegBytes.length + app1.length);
+        result.set(jpegBytes.subarray(0, 2), 0);   // SOI
+        result.set(app1, 2);                        // APP1 XMP
+        result.set(jpegBytes.subarray(2), 2 + app1.length); // rest
+        return result;
+      }
+
+      /**
        * ============================================================
        * XMP metadata injection for 360° panorama detection
        *
@@ -1313,35 +1369,28 @@
 
       /**
        * Build the XMP packet string with GPano 360° metadata.
-       * Uses CHILD ELEMENTS (not attributes) per the official Google Photo
-       * Sphere spec at https://developers.google.com/streetview/spherical-metadata
+       * Uses the EXACT format from the working HuggingFace
+       * 360_metadata_image_injector (nakas/360_metadata_image_injector),
+       * which is itself based on ExifTool's output. This format is
+       * proven to work with Facebook, Google Photos, and all 360° viewers.
        *
-       * CRITICAL: Facebook and other strict parsers ONLY read child elements.
-       * The attribute form (GPano:ProjectionType="...") is ignored by them,
-       * causing the image to be detected as a flat/180° panorama instead of
-       * a full 360° spherical panorama.
+       * Uses XML attributes (not child elements) with x:xmptk="ExifTool".
        */
       function buildXMPacket(width, height) {
         return '<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>\n' +
-          '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe Photoshop Lightroom Classic 13.1">\n' +
-          '  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n' +
-          '    <rdf:Description rdf:about="" xmlns:GPano="http://ns.google.com/photos/1.0/panorama/">\n' +
-          '      <GPano:UsePanoramaViewer>True</GPano:UsePanoramaViewer>\n' +
-          '      <GPano:ProjectionType>equirectangular</GPano:ProjectionType>\n' +
-          '      <GPano:PoseHeadingDegrees>0.0</GPano:PoseHeadingDegrees>\n' +
-          '      <GPano:InitialViewHeadingDegrees>0.0</GPano:InitialViewHeadingDegrees>\n' +
-          '      <GPano:InitialViewPitchDegrees>0.0</GPano:InitialViewPitchDegrees>\n' +
-          '      <GPano:InitialViewRollDegrees>0.0</GPano:InitialViewRollDegrees>\n' +
-          '      <GPano:InitialHorizontalFOVDegrees>75.0</GPano:InitialHorizontalFOVDegrees>\n' +
-          '      <GPano:CroppedAreaLeftPixels>0</GPano:CroppedAreaLeftPixels>\n' +
-          '      <GPano:CroppedAreaTopPixels>0</GPano:CroppedAreaTopPixels>\n' +
-          '      <GPano:CroppedAreaImageWidthPixels>' + width + '</GPano:CroppedAreaImageWidthPixels>\n' +
-          '      <GPano:CroppedAreaImageHeightPixels>' + height + '</GPano:CroppedAreaImageHeightPixels>\n' +
-          '      <GPano:FullPanoWidthPixels>' + width + '</GPano:FullPanoWidthPixels>\n' +
-          '      <GPano:FullPanoHeightPixels>' + height + '</GPano:FullPanoHeightPixels>\n' +
-          '      <GPano:SourcePhotosCount>1</GPano:SourcePhotosCount>\n' +
-          '    </rdf:Description>\n' +
-          '  </rdf:RDF>\n' +
+          '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="ExifTool">\n' +
+          '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">\n' +
+          '<rdf:Description rdf:about=""\n' +
+          'xmlns:GPano="http://ns.google.com/photos/1.0/panorama/"\n' +
+          'GPano:ProjectionType="equirectangular"\n' +
+          'GPano:UsePanoramaViewer="True"\n' +
+          'GPano:FullPanoWidthPixels="' + width + '"\n' +
+          'GPano:FullPanoHeightPixels="' + height + '"\n' +
+          'GPano:CroppedAreaImageWidthPixels="' + width + '"\n' +
+          'GPano:CroppedAreaImageHeightPixels="' + height + '"\n' +
+          'GPano:CroppedAreaLeftPixels="0"\n' +
+          'GPano:CroppedAreaTopPixels="0"/>\n' +
+          '</rdf:RDF>\n' +
           '</x:xmpmeta>\n' +
           '<?xpacket end="w"?>';
       }
@@ -1583,14 +1632,16 @@
           oCtx.drawImage(sourceCanvas, 0, addPixels);
         }
 
-        // Encode via browser's native canvas.toBlob (RGBA PNG, lossless)
-        const rawBlob = await canvasToBlob(outCanvas);
+        // Encode as JPEG (quality 0.95, visually lossless)
+        // JPEG is REQUIRED for 360° detection — most viewers only read
+        // XMP from JPEG APP1 segments, not PNG iTXt chunks
+        const rawBlob = await canvasToJPEGBlob(outCanvas);
 
-        // Inject XMP 360° metadata (GPano namespace) so services detect
-        // the image as an equirectangular 360° panorama
+        // Inject XMP 360° metadata as APP1 segment (ExifTool format)
         const rawBytes = await blobToBytes(rawBlob);
-        const withXMP = injectXMPIntoPNG(rawBytes, W, targetHeight);
-        const blob = new Blob([withXMP], { type: 'image/png' });
+        const xmp = buildXMPacket(W, targetHeight);
+        const withXMP = injectXMPIntoJPEG(rawBytes, xmp);
+        const blob = new Blob([withXMP], { type: 'image/jpeg' });
         const blobUrl = makeBlobUrl(blob);
 
         return {
@@ -1599,6 +1650,7 @@
           W: W, H: H, targetHeight: targetHeight, addPixels: addPixels,
           blob: blob, blobUrl: blobUrl, outputSize: blob.size,
           hasXMP: true,
+          format: 'JPEG',
         };
       }
 
@@ -1613,7 +1665,7 @@
           { label: 'Ratio avant', value: ratioBefore, unit: ':1', changed: false },
           { label: 'Ratio après', value: ratioAfter, unit: ':1', changed: !isWarning },
           { label: 'Taille fichier', value: fmtBytes(fileSize), unit: '', changed: false, mono: false },
-          { label: 'Export', value: 'PNG', unit: 'lossless', changed: false },
+          { label: 'Export', value: 'JPEG', unit: '360°', changed: false },
           { label: 'Métadonnées', value: '360°', unit: 'XMP', changed: !isWarning }
         ];
 
@@ -1719,12 +1771,12 @@
             setStatus('success',
               '<strong>Image ajustée au ratio 2:1.</strong> La ligne de pixels du haut a été ' +
               'étendue verticalement de <code>+' + result.addPixels + ' px</code>. ' +
-              'Export PNG lossless (' + fmtBytes(result.outputSize) + ') avec métadonnées 360° XMP.');
+              'Export JPEG 360° (' + fmtBytes(result.outputSize) + ') avec métadonnées XMP GPano.');
           }
 
           resultImg.src = result.blobUrl;
           downloadBtn.href = result.blobUrl;
-          downloadBtn.setAttribute('download', 'panoraco-' + sanitizeFilename(file.name) + '.png');
+          downloadBtn.setAttribute('download', 'panoraco-' + sanitizeFilename(file.name) + '.jpg');
           previewDimensions.textContent = W + ' × ' + result.targetHeight + ' px';
           preview.classList.remove('hidden');
           actions.classList.remove('hidden');
