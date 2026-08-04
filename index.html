@@ -1093,9 +1093,10 @@
       <div class="process-head reveal">
         <h2>Comment ça marche</h2>
         <p>
-          PanoRaCo applique une règle simple : si votre image est plus large
-          que le ratio 2:1, on étend la ligne de pixels du haut pour
-          atteindre la hauteur cible. Cinq étapes, zéro upload.
+          PanoRaCo ajuste vos panoramas au ratio 2:1 et injecte les
+          métadonnées XMP GPano pour que Facebook, Google Photos et les
+          viewers 360° les détectent comme des sphères équirectangulaires.
+          Cinq étapes, zéro upload, tout en local.
         </p>
       </div>
       <div class="steps stagger reveal" id="steps">
@@ -1136,8 +1137,8 @@
           <div class="step-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           </div>
-          <h3>Export lossless</h3>
-          <p>Le résultat est exporté en PNG sans perte. Téléchargement immédiat, comparaison visuelle incluse.</p>
+          <h3>Export JPEG 360°</h3>
+          <p>Le résultat est encodé en JPEG (qualité 95) avec un segment APP1 XMP contenant les métadonnées GPano. Compatible Facebook, Google Photos, YouTube et tous les viewers 360°.</p>
         </div>
       </div>
     </section>
